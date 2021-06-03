@@ -23,6 +23,7 @@ project "Raytracing-Sandbox"
         "../%{IncludeDir.Glad}",
         "../%{IncludeDir.Glad}/khr",
         "../OpenGL-Laboratory/src",
+        "./Src",
         "../~vendor"
 	}
 

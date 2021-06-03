@@ -23,7 +23,10 @@ Recently working on > **Learning About Compute Shaders**
 
 # 2. Code Framework (will be updated)
 
+Inside ./Raytracing-Sandbox/Src/
 ```
+Compute-Shader/
+    
 ```
 
 # 2. How to use

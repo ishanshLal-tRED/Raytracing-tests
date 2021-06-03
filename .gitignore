@@ -9,6 +9,7 @@ builds/*
 
 # Visual-Studio
 .vs/
+.vscode/
 *.sln
 *.vcxproj
 *.vcxproj.filters

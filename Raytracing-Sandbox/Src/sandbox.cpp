@@ -1,24 +1,24 @@
 // sandbox.cpp : This file contains the 'main' function. Program execution begins and ends there.
-#include "GLCore.h"
+#include <GLCore.h>
 #include "ExampleLayer.h"
+#include "Compute-Shader/00_Basic_Compute_Shader/basic_compute_shader.h"
 
-using namespace GLCore;
-
-class Sandbox : public Application
+class MySandbox
+	: public GLCore::Application
 {
 public:
-	Sandbox()
-		: Application("Sandbox")
+	MySandbox ()
+		: GLCore::Application("Sandbox")
 	{
 		PushLayer<ExampleLayer> ();
-		PushLayer<ExampleLayer> ("ExampleLayer 2");
+		PushLayer<BasicComputeShader_Test> ();
 		//ActivateLayer (0);
 	}
 };
 
 int main()
 {
-	std::unique_ptr<Sandbox> app = std::make_unique<Sandbox>();
+	std::unique_ptr<MySandbox> app = std::make_unique<MySandbox>();
 	app->Run();
 }
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

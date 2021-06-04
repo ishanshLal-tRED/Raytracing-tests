@@ -1,4 +1,4 @@
--- OpenGL-Sandbox
+-- Sandbox
 project "Raytracing-Sandbox"
 	kind "ConsoleApp"
 	language "C++"

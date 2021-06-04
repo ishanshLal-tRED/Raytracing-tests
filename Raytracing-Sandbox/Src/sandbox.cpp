@@ -2,6 +2,7 @@
 #include <GLCore.h>
 #include "ExampleLayer.h"
 #include "Compute-Shader/00_Basic_Compute_Shader/basic_compute_shader.h"
+#include "Compute-Shader/01_Blur_Using_Compute_Shader/blur_via_compute_shader.h"
 
 class MySandbox
 	: public GLCore::Application
@@ -12,6 +13,7 @@ public:
 	{
 		PushLayer<ExampleLayer> ();
 		PushLayer<BasicComputeShader_Test> ();
+		PushLayer<BlurWithComputeShader_Test> ();
 		//ActivateLayer (0);
 	}
 };

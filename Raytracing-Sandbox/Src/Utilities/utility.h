@@ -1,10 +1,21 @@
 ﻿#pragma once
 #include <optional>
+#include <tuple>
 #include <glad/glad.h>
 
 namespace Helper
 {
-	std::optional<GLuint> GenerateShaderProg (const char *source, GLenum shaderTyp);
-	std::optional<GLuint> GenerateShaderProg (const char *source1, GLenum shaderTyp1, const char *source2, GLenum shaderTyp2);
-	std::optional<GLuint> GenerateShaderProg (const char *source1, GLenum shaderTyp1, const char *source2, GLenum shaderTyp2, const char *source3, GLenum shaderTyp3);
+	namespace SHADER
+	{
+		std::optional<GLuint> CreateProgram (const char *source, GLenum shaderTyp);
+		std::optional<GLuint> CreateProgram (const char *source1, GLenum shaderTyp1, const char *source2, GLenum shaderTyp2);
+		std::optional<GLuint> CreateProgram (const char *source1, GLenum shaderTyp1, const char *source2, GLenum shaderTyp2, const char *source3, GLenum shaderTyp3);
+	}
+	namespace TEXTURE_2D
+	{
+		void SetData (GLuint ID, uint32_t width, uint32_t height, GLenum incomingFormat, const uint8_t *data, uint8_t level);
+		GLuint Upload (const uint8_t *data, uint32_t width, uint32_t height, uint8_t channels);
+		std::optional<std::tuple<GLuint, uint32_t, uint32_t>> LoadFromDiskToGPU ();
+		std::optional<std::tuple<GLuint, uint32_t, uint32_t>> LoadFromDiskToGPU (const char *location);
+	}
 }

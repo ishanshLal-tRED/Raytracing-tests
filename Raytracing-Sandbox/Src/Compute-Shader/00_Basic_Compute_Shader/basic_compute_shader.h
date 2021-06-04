@@ -8,18 +8,33 @@
 class BasicComputeShader_Test: public GLCore::TestBase
 {
 public:
-	BasicComputeShader_Test (std::string name = "Basic Compute Shader");
+	BasicComputeShader_Test (const char* name = "Basic Compute Shader", const char* discription = "creating a basic compute shader which sets each pixel and displays it on-to screen acc to Square_Shader"
+							 , const char* default_compute_shader_src = s_default_compute_shader
+							 , const char* default_sqr_shader_vert_src = s_default_sqr_shader_vert
+							 , const char* default_sqr_shader_frag_src = s_default_sqr_shader_frag
+	);
 	virtual ~BasicComputeShader_Test () = default;
 
 	virtual void OnAttach () override;
 	virtual void OnDetach () override;
-	virtual void OnEvent (GLCore::Event &event) override;
 	virtual void OnUpdate (GLCore::Timestep ts) override;
 	virtual void OnImGuiRender () override;
 	virtual void ImGuiMenuOptions () override;
+
+	virtual void OnAttachExtras () {};
+	virtual void OnDetachExtras () {};
+	virtual void OnImGuiRenderUnderSettingsTab () {};
 private:
 	void ReloadComputeShader ();
 	void ReloadSquareShader ();
+protected:
+	static const char *s_default_compute_shader;
+	static const char *s_default_sqr_shader_vert;
+	static const char *s_default_sqr_shader_frag;
+	GLuint m_ComputeShaderOutputTex = 0;
+	GLuint m_ComputeShaderProgID = 0, m_SquareShaderProgID = 0;
+	GLuint m_QuadVA = 0, m_QuadVB = 0, m_QuadIB = 0;
+	const glm::ivec2 m_OutputTexDimensions = glm::ivec2 (512, 512);
 private:
 	struct Buffer
 	{
@@ -62,8 +77,5 @@ private:
 		const uint16_t _size;
 	};
 	Buffer m_ComputeShaderTXT, m_SquareShaderTXT_vert, m_SquareShaderTXT_frag;
-	GLuint m_ComputeShaderProgID = 0, m_SquareShaderProgID = 0;
-	GLuint m_QuadVA = 0, m_QuadVB = 0, m_QuadIB = 0;
-	GLuint m_ComputeShaderOutputTex = 0;
-	glm::ivec2 m_OutputTexDimensions = glm::ivec2 (512, 512);
+
 };

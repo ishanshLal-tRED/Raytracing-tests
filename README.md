@@ -26,6 +26,8 @@ Recently working on > **Learning About Compute Shaders**
 Inside ./Raytracing-Sandbox/Src/
 ```
 Compute-Shader/
+   00_Basic_Compute_Shader
+   01_Blur_Using_Compute_Shader
     
 ```
 

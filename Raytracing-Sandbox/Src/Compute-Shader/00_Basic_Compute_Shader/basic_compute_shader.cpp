@@ -5,15 +5,16 @@ using namespace GLCore;
 using namespace GLCore::Utils;
 
 
-const char *default_compute_shader = R"(
+const char *BasicComputeShader_Test::s_default_compute_shader = R"(
 #version 440 core
 layout(local_size_x = 1, local_size_y = 1) in;
 layout(rgba32f, binding = 0) uniform image2D img_output;
 
 vec4 out_Pixel(ivec2 pixel_coords){
-	float r = pixel_coords.x / (512.0 - 1);
-    float g = pixel_coords.y / (512.0 - 1);
-    float b = 0.5;
+	ivec2 imageSize = imageSize(img_output);
+	float r = pixel_coords.x / (imageSize.x - 1.0);
+    float g = pixel_coords.y / (imageSize.y - 1.0);
+    float b = 0.25;
 	return vec4(r, g, b, 1.0);
 }
 void main() {
@@ -26,7 +27,7 @@ void main() {
   // output to a specific pixel in the image
   imageStore(img_output, pixel_coords, pixel);
 })";
-const char *default_sqr_shader_vert = R"(
+const char *BasicComputeShader_Test::s_default_sqr_shader_vert = R"(
 #version 440 core
 layout (location = 0) in vec3 in_Position;
 
@@ -37,7 +38,7 @@ void main()
 	gl_Position = vec4(in_Position, 1.0f);
 	b_Coord = vec2(in_Position.x > 0 ? 1.0 : 0, in_Position.y > 0 ? 1.0 : 0);
 })";
-const char *default_sqr_shader_frag = R"(
+const char *BasicComputeShader_Test::s_default_sqr_shader_frag = R"(
 #version 440 core
 layout (location = 0) in vec2 b_Coord;
 layout (rgba32f, binding = 0) uniform sampler2D u_Texture;
@@ -50,16 +51,16 @@ void main()
 })";
 int Work_Group_Count[3] = { 0,0,0 }, Work_Group_Size[3] = { 0,0,0 };
 
-BasicComputeShader_Test::BasicComputeShader_Test (std::string name /*= "Basic Compute Shader"*/)
-	: TestBase (name, "creating a basic compute shader \
-which sets each pixel and displays it on-to screen acc to Square_Shader"),
-m_ComputeShaderTXT (Buffer::Create (default_compute_shader)),
-m_SquareShaderTXT_vert (Buffer::Create (default_sqr_shader_vert, 512)),
-m_SquareShaderTXT_frag (Buffer::Create (default_sqr_shader_frag, 512))
+BasicComputeShader_Test::BasicComputeShader_Test(const char* name /*= "Basic Compute Shader"*/, const char* discription /*= "creating a basic compute shader which sets each pixel and displays it on-to screen acc to Square_Shader" */
+	, const char* default_compute_shader_src /*= s_default_compute_shader */, const char* default_sqr_shader_vert_src /*= s_default_sqr_shader_vert */, const char* default_sqr_shader_frag_src /*= s_default_sqr_shader_frag */
+) : TestBase (std::string(name), std::string(discription)),
+m_ComputeShaderTXT (Buffer::Create (default_compute_shader_src)),
+m_SquareShaderTXT_vert (Buffer::Create (default_sqr_shader_vert_src, 512)),
+m_SquareShaderTXT_frag (Buffer::Create (default_sqr_shader_frag_src, 512))
 {}
 
 void BasicComputeShader_Test::ReloadComputeShader (){
-	std::optional<GLuint> shader_program = Helper::GenerateShaderProg (m_ComputeShaderTXT.data (), GL_COMPUTE_SHADER);
+	std::optional<GLuint> shader_program = Helper::SHADER::CreateProgram (m_ComputeShaderTXT.data (), GL_COMPUTE_SHADER);
 	if (shader_program.has_value ()) {
 		if(m_ComputeShaderProgID)
 			glDeleteProgram (m_ComputeShaderProgID);
@@ -73,7 +74,7 @@ void BasicComputeShader_Test::ReloadComputeShader (){
 	}
 }
 void BasicComputeShader_Test::ReloadSquareShader  (){
-	std::optional<GLuint> shader_program = Helper::GenerateShaderProg (m_SquareShaderTXT_vert.data (), GL_VERTEX_SHADER, m_SquareShaderTXT_frag.data (), GL_FRAGMENT_SHADER);
+	std::optional<GLuint> shader_program = Helper::SHADER::CreateProgram (m_SquareShaderTXT_vert.data (), GL_VERTEX_SHADER, m_SquareShaderTXT_frag.data (), GL_FRAGMENT_SHADER);
 	if (shader_program.has_value ()) {
 		if (m_SquareShaderProgID)
 			glDeleteProgram (m_SquareShaderProgID);
@@ -146,15 +147,26 @@ void BasicComputeShader_Test::OnAttach ()
 		// (GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format)
 		glBindImageTexture (0, tex_output, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 	}
+	OnAttachExtras ();
 }
 void BasicComputeShader_Test::OnDetach ()
 {
 	glDeleteVertexArrays (1, &m_QuadVA);
+	m_QuadVA = 0;
 	glDeleteBuffers (1, &m_QuadVB);
+	m_QuadVB = 0;
 	glDeleteBuffers (1, &m_QuadIB);
-}
-void BasicComputeShader_Test::OnEvent (GLCore::Event &event)
-{
+	m_QuadIB = 0;
+
+	glDeleteTextures (1, &m_ComputeShaderOutputTex);
+	m_ComputeShaderOutputTex = 0;
+
+	glDeleteProgram (m_ComputeShaderProgID);
+	m_ComputeShaderProgID = 0;
+	glDeleteProgram (m_SquareShaderProgID);
+	m_SquareShaderProgID = 0;
+
+	OnDetachExtras ();
 }
 
 void BasicComputeShader_Test::OnUpdate (GLCore::Timestep ts)
@@ -176,14 +188,17 @@ void BasicComputeShader_Test::OnUpdate (GLCore::Timestep ts)
 		glActiveTexture (GL_TEXTURE0);
 		glBindTexture (GL_TEXTURE_2D, m_ComputeShaderOutputTex);
 		glDrawElements (GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
-		glUseProgram (0);
 	}
 }
 void BasicComputeShader_Test::OnImGuiRender ()
 {
 	ImGui::Begin (ImGuiLayer::UniqueName("Just a window"));
-	ImGui::Text ("Max Compute Work Group\n Count: %d, %d, %d\n Size:  %d, %d, %d", Work_Group_Count[0], Work_Group_Count[1], Work_Group_Count[2], Work_Group_Size[0], Work_Group_Size[1], Work_Group_Size[2]);
 	if (ImGui::BeginTabBar (ImGuiLayer::UniqueName("Shaders Content"))) {
+		if (ImGui::BeginTabItem(ImGuiLayer::UniqueName("Settings"))) {
+			OnImGuiRenderUnderSettingsTab ();
+			ImGui::Text ("Max Compute Work Group\n Count: %d, %d, %d\n Size:  %d, %d, %d", Work_Group_Count[0], Work_Group_Count[1], Work_Group_Count[2], Work_Group_Size[0], Work_Group_Size[1], Work_Group_Size[2]);
+			ImGui::EndTabItem ();
+		}
 		if (ImGui::BeginTabItem(ImGuiLayer::UniqueName("Compute Shader Source"))) {
 			ImVec2 contentRegion = ImGui::GetContentRegionAvail ();
 			ImVec2 textbox_contentRegion(contentRegion.x, contentRegion.y - 60);

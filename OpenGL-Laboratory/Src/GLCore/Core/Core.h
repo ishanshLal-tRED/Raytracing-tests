@@ -68,3 +68,34 @@
 #define BIT(x) (1 << x)
 
 #define GLCORE_BIND_EVENT_FN(fn) std::bind(&fn, this, std::placeholders::_1)
+
+#include <array>
+#include <type_traits>
+#include <utility>
+namespace my_std
+{
+	namespace Internal
+	{
+		template<std::size_t size, typename T, std::size_t... indexes>
+		constexpr auto make_array_n_impl (T &&value, std::index_sequence<indexes...>)
+		{
+			return std::array<std::decay_t<T>, size>{(static_cast<void>(indexes), value)..., std::forward<T> (value)};
+		}
+
+		template<std::size_t size, typename T>
+		constexpr auto make_array_n (std::integral_constant<std::size_t, 0>, T &&)
+		{
+			return std::array<std::decay_t<T>, 0>{};
+		}
+		template<std::size_t size, typename T>
+		constexpr auto make_array_n (std::integral_constant<std::size_t, size>, T &&value)
+		{
+			return make_array_n_impl<size> (std::forward<T> (value), std::make_index_sequence<size - 1>{});
+		}
+	};
+	template<std::size_t size, typename T>
+	constexpr auto make_array (T &&value)
+	{
+		return Internal::make_array_n (std::integral_constant<std::size_t, size>{}, std::forward<T> (value));
+	}
+};

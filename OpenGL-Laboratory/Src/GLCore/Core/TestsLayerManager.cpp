@@ -1,5 +1,6 @@
 ﻿#include "pch.h"
 #include "GLCore/Core/TestBase.h"
+#include "GLCore/Util/Core/Framebuffer.h"
 #include "TestsLayerManager.h"
 
 #include "GLCore/Core/Application.h"
@@ -10,12 +11,15 @@ namespace GLCore
 {
 	TestsLayerManager::~TestsLayerManager ()
 	{
-		constexpr uint16_t Active_Tests_stack_size = sizeof (m_ActiveTests)/sizeof (m_ActiveTests[0]);
-
-		for (uint16_t i = 0; i < Active_Tests_stack_size; i++) {
+		for (uint16_t i = 0; i < g_MaxNumOfAllowedTests; i++) {
 			if (m_ActiveTests[i]) {
 				m_ActiveTests[i]->OnDetach ();
 				m_ActiveTests[i] = nullptr;
+			}
+			if (m_ActiveTestFramebuffers[i])
+			{
+				delete m_ActiveTestFramebuffers[i];
+				m_ActiveTestFramebuffers[i] = nullptr;
 			}
 		}
 		{
@@ -26,7 +30,7 @@ namespace GLCore
 	}
 	void TestsLayerManager::PushTest (TestBase *test)
 	{
-		for (TestBase *_test: m_AllTests) 	{
+		for (TestBase *_test: m_AllTests) {
 			if (test->GetName () == _test->GetName ()) {
 				LOG_ERROR ( "Similar Named Test: {0} Already Exists, Please resolve name conflict EXITING APPLICATION", test->GetName ());
 				Application::Get ().ApplicationClose ();
@@ -38,16 +42,18 @@ namespace GLCore
 
 	void TestsLayerManager::UpdateActiveLayers (Timestep deltatime)
 	{
+		uint8_t testIndex = 0;
 		for (TestBase *test : m_ActiveTests) 	{
 			if (test)
 			{
 				////
 				// Here Will be code for frame buffer
 				////
-				test->m_Framebuffer.Bind ();
+				m_ActiveTestFramebuffers[testIndex]->Bind ();
 				test->OnUpdate (deltatime);
-				test->m_Framebuffer.Unbind ();
+				m_ActiveTestFramebuffers[testIndex]->Unbind ();
 			} else break;
+			testIndex++;
 		}
 	}
 	void TestsLayerManager::ImGuiRender ()
@@ -183,12 +189,13 @@ namespace GLCore
 					{
 						ImVec2 ContentRegionAvail = ImGui::GetContentRegionAvail ();
 						ImVec2 ContentDrawStartPos = ImGui::GetCursorScreenPos ();
-						ImGui::Image (reinterpret_cast<void *>(test->m_Framebuffer.GetColorAttachmentRendererID ()), ContentRegionAvail, ImVec2{ 0, 1 }, ImVec2{ 1, 0 });
+						ImGui::Image (reinterpret_cast<void *>(m_ActiveTestFramebuffers[test_index]->GetColorAttachmentRendererID ()), ContentRegionAvail, ImVec2{ 0, 1 }, ImVec2{ 1, 0 });
 						test->FlagSetter (TestBase::Viewport_Focused, ImGui::IsWindowFocused ());
 						test->FlagSetter (TestBase::Viewport_Hovered, ImGui::IsWindowHovered ());
 
-						test->ViewportSize (ContentRegionAvail.x, ContentRegionAvail.y);
-						
+						if (test->ViewportSize (ContentRegionAvail.x, ContentRegionAvail.y)) {
+							m_ActiveTestFramebuffers[test_index]->Resize ((uint32_t)test->m_ViewPortSize.x, (uint32_t)test->m_ViewPortSize.y);
+						}
 						test->m_ViewportPosnRelativeToMain.x = ContentDrawStartPos.x - TestBase::s_MainViewportPosn.x;
 						test->m_ViewportPosnRelativeToMain.y = ContentDrawStartPos.y - TestBase::s_MainViewportPosn.y;
 					}
@@ -220,8 +227,7 @@ namespace GLCore
 	
 	void TestsLayerManager::ActivateTest (uint16_t posn)
 	{
-		constexpr uint16_t Active_Tests_stack_size = sizeof (m_ActiveTests)/sizeof (m_ActiveTests[0]);
-		for (uint16_t i = 0; i < Active_Tests_stack_size; i++)
+		for (uint16_t i = 0; i < g_MaxNumOfAllowedTests; i++)
 		{
 			if (m_ActiveTests[i] == m_AllTests[posn]) {
 				LOG_WARN ("test Already running");
@@ -233,27 +239,29 @@ namespace GLCore
 			}
 			m_ActiveTests[i] = m_AllTests[posn];
 			m_ActiveTests[i]->OnAttach ();
+			if (m_ActiveTestFramebuffers[i])
+				m_ActiveTestFramebuffers[i]->Resize ((uint32_t)m_ActiveTests[i]->m_ViewPortSize.x, (uint32_t)m_ActiveTests[i]->m_ViewPortSize.y);
+			else	
+				m_ActiveTestFramebuffers[i] = new Utils::Framebuffer (Utils::FramebufferSpecification{ (uint32_t)m_ActiveTests[i]->m_ViewPortSize.x, (uint32_t)m_ActiveTests[i]->m_ViewPortSize.y, { Utils::FramebufferTextureFormat::RGBA8, Utils::FramebufferTextureFormat::Depth } });
 			return;
-			
 		}
 		LOG_WARN ("!! No more Active tests allowed !!");
 	}
 	void TestsLayerManager::DeActivateTest (uint16_t posn)
 	{
-		constexpr uint16_t Active_Tests_stack_size = sizeof (m_ActiveTests)/sizeof (m_ActiveTests[0]);
-		if (posn < Active_Tests_stack_size) {
+		if (posn < g_MaxNumOfAllowedTests) {
 			if (m_ActiveTests[posn] != nullptr) {
-				for (uint16_t i = posn; i < (Active_Tests_stack_size - 1); i++) {
+				for (uint16_t i = posn; i < (g_MaxNumOfAllowedTests - 1); i++) {
 					m_ActiveTests[i] = m_ActiveTests[i + 1];
 				}
-				m_ActiveTests[Active_Tests_stack_size - 1] = nullptr;
+				m_ActiveTests[g_MaxNumOfAllowedTests - 1] = nullptr;
 				return;
 			} else {
 				LOG_WARN ("!! nullptr found at: posn {0}", posn);
 				return;
 			}
 		}
-		LOG_WARN ("!! Out of bounds: posn {0}, Active_Tests_stack_size {1} !!", posn, Active_Tests_stack_size);
+		LOG_WARN ("!! Out of bounds: posn {0}, Active_Tests_stack_size {1} !!", posn, g_MaxNumOfAllowedTests);
 	}
 
 	void TestsLayerManager::ShowTestMenu ()
@@ -272,7 +280,7 @@ namespace GLCore
 		for (TestBase *test: m_AllTests) {
 			ImGui::PushID (i);
 			ImGui::SetNextItemWidth (RegionSize.x/2.0f);
-			bool un_collapsed = ImGui::CollapsingHeader (test->GetName ().c_str (), NULL, ImGuiTreeNodeFlags_AllowItemOverlap);
+			bool un_collapsed = ImGui::CollapsingHeader (test->GetName ().c_str (), NULL, ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_DefaultOpen);
 			ImGui::SameLine ();
 			{
 				float x = RegionSize.x/2.0f;

@@ -1,6 +1,5 @@
 ﻿#pragma once
 #include "GLCore/Core/Layer.h"
-#include "GLCore/Util/Core/Framebuffer.h"
 #include <glm/glm.hpp>
 #include "GLCore/Events/LayerEvent.h"
 
@@ -32,7 +31,7 @@ namespace GLCore
 	private:
 		void FlagSetter (Flags, bool);
 		void FilteredEvent (Event &event);
-		void ViewportSize (float x, float y);
+		bool ViewportSize (float x, float y);
 		friend class TestsLayerManager;
 	private:
 		static glm::vec2 s_MainViewportPosn;
@@ -42,7 +41,6 @@ namespace GLCore
 		/////
 		int m_Flags;
 		glm::vec2 m_ViewPortSize;
-		Utils::Framebuffer m_Framebuffer;
 
 		glm::vec2 m_ViewportPosnRelativeToMain;
 		std::string m_TestDiscription;

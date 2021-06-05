@@ -4,7 +4,7 @@ using namespace GLCore;
 using namespace GLCore::Utils;
 
 ExampleLayer::ExampleLayer(std::string name)
-	: TestBase(name, "Square"), m_CameraController(16.0f / 9.0f)
+	: TestBase(name, "Just a Square"), m_CameraController(16.0f / 9.0f)
 {
 
 }
@@ -109,13 +109,17 @@ void ExampleLayer::OnUpdate(Timestep ts)
 	glBindVertexArray(m_QuadVA);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 }
-
+std::array<int, 10> just_an_arr = my_std::make_array<10> (23);
 void ExampleLayer::OnImGuiRender()
 {
 	ImGui::Begin(ImGuiLayer::UniqueName("Controls"));
 	if (ImGui::ColorEdit4("Square Base Color", glm::value_ptr(m_SquareBaseColor)))
 		m_SquareColor = m_SquareBaseColor;
 	ImGui::ColorEdit4("Square Alternate Color", glm::value_ptr(m_SquareAlternateColor));
+	ImGui::Text ("just an array:");
+	for (uint32_t i = 0; i < just_an_arr.size (); i++)
+		ImGui::Text ("  %d", just_an_arr[i]);
+
 	ImGui::End();
 }
 

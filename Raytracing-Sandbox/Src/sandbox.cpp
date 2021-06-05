@@ -14,7 +14,6 @@ public:
 		PushLayer<ExampleLayer> ();
 		PushLayer<BasicComputeShader_Test> ();
 		PushLayer<BlurWithComputeShader_Test> ();
-		//ActivateLayer (0);
 	}
 };
 

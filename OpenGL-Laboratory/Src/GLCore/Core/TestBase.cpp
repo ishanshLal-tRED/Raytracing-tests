@@ -7,7 +7,7 @@
 namespace GLCore
 {
 	TestBase::TestBase (const std::string &name, const std::string &discription)
-		: Layer (name), m_TestDiscription (discription), m_ViewPortSize(1, 1), m_Framebuffer (Utils::FramebufferSpecification{ (uint32_t)m_ViewPortSize.x, (uint32_t)m_ViewPortSize.y, { Utils::FramebufferTextureFormat::RGBA8, Utils::FramebufferTextureFormat::Depth } })
+		: Layer (name), m_TestDiscription (discription), m_ViewPortSize(1, 1)
 	{}
 
 	glm::vec2 TestBase::s_MainViewportPosn = glm::vec2(0, 0);
@@ -74,16 +74,17 @@ namespace GLCore
 		}
 	}
 
-	void TestBase::ViewportSize (float x, float y)
+	bool TestBase::ViewportSize (float x, float y)
 	{
 		if (m_ViewPortSize.x != x || m_ViewPortSize.y != y)
 		{
 			// Viewport size changed
-			m_Framebuffer.Resize ((uint32_t)x, (uint32_t)y);
 			
 			LayerViewportResizeEvent event (x, y);
 			OnEvent (event);
 			m_ViewPortSize.x = x, m_ViewPortSize.y = y;
+			return true;
 		}
+		return false;
 	}
 }

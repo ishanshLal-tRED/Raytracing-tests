@@ -29,7 +29,10 @@ Compute-Shader/
    00_Basic_Compute_Shader
    01_Blur_Using_Compute_Shader
    02_Evolving_Pics (Partially-finished due to unforseen circumstances)
-    
+
+In-One-Weekend/
+	00_Image
+
 ```
 
 # 2. How to use
@@ -45,7 +48,7 @@ Compute-Shader/
 
 ## 2.1 Environment
 
-- Visual Studio 2017+
+- Visual Studio 2017+ (for C++ 17)
 - Windows10
 - Git
 - Premake (included)

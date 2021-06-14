@@ -182,6 +182,7 @@ namespace Helper
 	{
 		GLuint ID;
 		glGenTextures (1, &ID);
+		glActiveTexture (GL_TEXTURE0);
 		glBindTexture (GL_TEXTURE_2D, ID);
 
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -198,8 +199,12 @@ namespace Helper
 
 		/* glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height); */
 		glTexImage2D (GL_TEXTURE_2D, 0, internal_format, width, height, 0, src_format, src_type, nullptr);
-		SetData (ID, width, height, src_format, src_type, data, 0);
-		glGenerateMipmap (GL_TEXTURE_2D);
+		
+		if (data) {
+			SetData (ID, width, height, src_format, src_type, data, 0);
+			glGenerateMipmap (GL_TEXTURE_2D);
+		}
+		
 		glBindTexture (GL_TEXTURE_2D, 0);
 		return ID;
 

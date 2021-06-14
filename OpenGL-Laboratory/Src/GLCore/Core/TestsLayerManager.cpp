@@ -202,7 +202,7 @@ namespace GLCore
 					ImGui::End ();
 					ImGui::PopStyleVar ();
 		
-					ImGui::SetNextWindowDockID (dockspace_id, ImGuiCond_Once);
+					ImGui::SetNextWindowDockID (dockspace_id, ImGuiCond_FirstUseEver);
 					test->OnImGuiRender ();
 					ImGui::PopID ();
 				}

@@ -77,5 +77,4 @@ private:
 		const uint16_t _size;
 	};
 	Buffer m_ComputeShaderTXT, m_SquareShaderTXT_vert, m_SquareShaderTXT_frag;
-
 };

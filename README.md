@@ -19,7 +19,7 @@ Along with changes, optimizations, and additions to the content
 For details, please refer to the notes and source code
 The graphics interface uses OpenGL 4.4
 
-Recently working on > **Learning About Compute Shaders**
+Recently working on > **Ray Tracing in One Weekend**
 
 # 2. Code Framework (will be updated)
 
@@ -28,6 +28,7 @@ Inside ./Raytracing-Sandbox/Src/
 Compute-Shader/
    00_Basic_Compute_Shader
    01_Blur_Using_Compute_Shader
+   02_Evolving_Pics (Partially-finished due to unforseen circumstances)
     
 ```
 

@@ -155,7 +155,7 @@ namespace Helper
 		LOG_ASSERT (internalFormat & dataFormat, "Format not supported");
 		return { dataFormat, internalFormat };
 	}
-	void TEXTURE_2D::SetData (GLuint ID, uint32_t width, uint32_t height, GLenum incomingFormat, const uint8_t *data, uint8_t level)
+	void TEXTURE_2D::SetData(GLuint ID, uint32_t width, uint32_t height, GLenum src_format, GLenum src_type, const void *data, uint8_t level)
 	{
 
 		// Backup GL state
@@ -165,7 +165,7 @@ namespace Helper
 
 		if (last_texture != ID)
 			glBindTexture (GL_TEXTURE_2D, ID);
-		glTexSubImage2D (GL_TEXTURE_2D, level, 0, 0, width, height, incomingFormat, GL_UNSIGNED_BYTE, data);
+		glTexSubImage2D (GL_TEXTURE_2D, level, 0, 0, width, height, src_format, src_type, data);
 
 		// Restore modified GL state
 		if (last_texture != ID)
@@ -175,14 +175,18 @@ namespace Helper
 	GLuint TEXTURE_2D::Upload (const uint8_t *data, uint32_t width, uint32_t height, uint8_t channels)
 	{
 		auto [incomingFormat, internalFormat] = NumOfIncomingChannelsToIncomingAndInternalFormat (channels);
+		return Upload (data, width, height, internalFormat, incomingFormat, GL_UNSIGNED_BYTE);
 
+	}
+	GLuint TEXTURE_2D::Upload (const void *data, uint32_t width, uint32_t height, GLenum internal_format, GLenum src_format, GLenum src_type)
+	{
 		GLuint ID;
 		glGenTextures (1, &ID);
 		glBindTexture (GL_TEXTURE_2D, ID);
 
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 		/// glTexStorage2D is: [it's not working]
@@ -193,8 +197,8 @@ namespace Helper
 		//}
 
 		/* glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height); */
-		glTexImage2D (GL_TEXTURE_2D, 0, internalFormat, width, height, 0, incomingFormat, GL_UNSIGNED_BYTE, nullptr);
-		SetData (ID, width, height, incomingFormat, data, 0);
+		glTexImage2D (GL_TEXTURE_2D, 0, internal_format, width, height, 0, src_format, src_type, nullptr);
+		SetData (ID, width, height, src_format, src_type, data, 0);
 		glGenerateMipmap (GL_TEXTURE_2D);
 		glBindTexture (GL_TEXTURE_2D, 0);
 		return ID;

@@ -11,6 +11,11 @@ namespace GLCore {
 
 	Application* Application::s_Instance = nullptr;
 
+	float Application::GetTimeInSeconds ()
+	{
+		return (float)glfwGetTime ();
+	}
+	
 	Application::Application(const std::string& name, uint32_t width, uint32_t height)
 	{
 		if (!s_Instance)
@@ -44,7 +49,7 @@ namespace GLCore {
 		{
 			// TODO: Handle Minimizing, Handle Framebuffer accordingly
 
-			float time = (float)glfwGetTime();
+			float time = GetTimeInSeconds ();
 			Timestep timestep = time - m_LastFrameTime;
 			m_LastFrameTime = time;
 

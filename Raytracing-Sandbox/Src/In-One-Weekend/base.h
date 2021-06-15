@@ -21,6 +21,8 @@ public:
 	virtual void OnImGuiRender    () = 0;
 	virtual void ImGuiMenuOptions () = 0;
 
+	virtual void OnComputeShaderReload () {};
+	virtual void OnSquareShaderReload  () {};
 protected:
 	void OnImGuiComputeShaderSource ()
 	{
@@ -103,6 +105,7 @@ protected:
 					glUseProgram (shader_program.value ());
 			}
 			m_ComputeShaderProgID = shader_program.value ();
+			OnComputeShaderReload ();
 		}
 	}
 	void DeleteComputeShader ()
@@ -124,6 +127,7 @@ protected:
 					glUseProgram (shader_program.value ());
 			}
 			m_SquareShaderProgID = shader_program.value ();
+			OnSquareShaderReload ();
 		}
 	}
 	void DeleteSquareShader ()

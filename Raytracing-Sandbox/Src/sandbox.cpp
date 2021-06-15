@@ -5,6 +5,7 @@
 #include "Compute-Shader/01_Blur_Using_Compute_Shader/blur_via_compute_shader.h"
 #include "Compute-Shader/02_Evolving_Pics/test.h"
 #include "In-One-Weekend/00_Image/image.h"
+#include "In-One-Weekend/01_Adding_Sphere/Sphere.h"
 
 class MySandbox
 	: public GLCore::Application
@@ -18,6 +19,7 @@ public:
 		PushLayer<BlurWithComputeShader_Test> ();
 		PushLayer<just_a_test> ();
 		PushLayer<In_One_Weekend::Image> ();
+		PushLayer<In_One_Weekend::Sphere> ();
 	}
 };
 

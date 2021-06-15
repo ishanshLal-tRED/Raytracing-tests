@@ -1,4 +1,5 @@
-﻿#include <GLCore.h>
+﻿#pragma once
+#include <GLCore.h>
 #include "../base.h"
 
 namespace In_One_Weekend
@@ -7,7 +8,7 @@ namespace In_One_Weekend
 	{
 	public:
 		Image ()
-			: ComputeAndSqrShader_Base ("InOneWeekend - 01_Image", "writing on Screen")
+			: ComputeAndSqrShader_Base ("InOneWeekend - 00_Image", "writing on Screen")
 		{}
 		~Image () = default;
 		virtual void OnDetach () override;

@@ -28,7 +28,7 @@ namespace In_One_Weekend
 	    GLuint m_CamPosnUniLoc = 0;
 	    GLuint m_CamDirnUniLoc = 0;
 	    float m_FocusDist = 1.0f;
-	    glm::vec3 m_CameraPosn = glm::vec3 (0);
+	    glm::vec3 m_CameraPosn = glm::vec3 (0, 0, 5);
 	    glm::vec3 m_CameraDirn = glm::vec3 (0, 0, -1);
 
 		static const char *s_ComputeShader;

@@ -65,20 +65,23 @@ vec3 Intersect(Ray ray, Plane3D plane)
 
 	return vec3( x, y, z );
 }
-bool RayXPlane (Ray ray, Plane3D plane)
+
+// returns Hit-Distance / Depth ray travelled befor hitting
+float RayXPlane (Ray ray, Plane3D plane)
 {
 	float t = -(plane.Eqn.x * (ray.Orig.x) + plane.Eqn.y * (ray.Orig.y) + plane.Eqn.z * (ray.Orig.z) + plane.Eqn.w) 
 			/ (plane.Eqn.x * (ray.Dirn.x) + plane.Eqn.y * (ray.Dirn.y) + plane.Eqn.z * (ray.Dirn.z));
-	return (t > 0);
+	return (t > 0 ? length(ray.Dirn*t) : -1.0);
 }
-bool RayXSphere (Ray ray, Sphere sphere)
+float RayXSphere (Ray ray, Sphere sphere)
 {
-	vec3 oc = ray.Orig - sphere.Centre;
-	float a = dot (ray.Dirn, ray.Dirn);
-	float b = 2.0 * dot (oc, ray.Dirn);
-	float c = dot (oc, oc) - sphere.Radius*sphere.Radius;
-	float discriminant = b*b - 4*a*c;
-	return (discriminant > 0);
+	vec3 ray_to_sphere = ray.Orig - sphere.Centre;
+	float half_b = dot(ray.Dirn, ray_to_sphere);
+	float a = dot(ray.Dirn, ray.Dirn);
+	float c = dot(ray_to_sphere, ray_to_sphere) - sphere.Radius*sphere.Radius;
+	
+	float determinant = half_b*half_b - a*c;
+	return (determinant > 0 && half_b < 0 ? length(ray.Dirn*((-half_b + sqrt(determinant))/a)) : -1.0);
 }
 vec3 RayColor (Ray ray)
 {
@@ -101,8 +104,24 @@ vec4 out_Pixel (ivec2 pixel_coords)
 
 	Plane3D infinite_floor = CreatePlane (vec3 (0, -2, 0), vec3 (0, -2, 1), vec3 (1, -2, 0));
 	Ray cam_ray = CreateRay (u_CameraPosn, point_in_scr_space);
-	vec3 color = RayXPlane (cam_ray, infinite_floor) ? RayColor (cam_ray) : vec3 (0.8, 0.1, 0.7f);
-	color = RayXSphere (cam_ray, sphere) ? vec3(1, 0, 0) : color;
+	// Sphere sphere
+	
+	vec3 color = RayColor (cam_ray); // background
+	float min_depth = 10000; // FLT_MAX
+	//Depth Testing
+	{
+		float depth = RayXPlane (cam_ray, infinite_floor); // with plane
+		if(min_depth > depth && depth > 0){
+			color = vec3 (0.8, 0.1, 0.7f); // plane color
+			min_depth = depth;
+		}
+	}{
+		float depth = RayXSphere (cam_ray, sphere); // with sphere
+		if(min_depth > depth && depth > 0){
+			color = vec3 (1, 0, 0); // sphere color
+			min_depth = depth;
+		}
+	}
 	return vec4 (color, 1.0);
 }
 void main ()

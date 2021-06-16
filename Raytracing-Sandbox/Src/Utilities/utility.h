@@ -3,6 +3,10 @@
 #include <tuple>
 #include <glad/glad.h>
 
+#define MIN(x,y) (x > y ? y :  x)
+#define MAX(x,y) (x > y ? x :  y)
+#define ABS(x)   (x > 0 ? x : -x)
+#define MOD(x,y) (x - ((int)(((float)x) / y) * y))
 namespace Helper
 {
 	namespace SHADER

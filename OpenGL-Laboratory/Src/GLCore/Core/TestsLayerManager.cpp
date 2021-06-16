@@ -189,7 +189,7 @@ namespace GLCore
 					{
 						ImVec2 ContentRegionAvail = ImGui::GetContentRegionAvail ();
 						ImVec2 ContentDrawStartPos = ImGui::GetCursorScreenPos ();
-						ImGui::Image (reinterpret_cast<void *>(m_ActiveTestFramebuffers[test_index]->GetColorAttachmentRendererID ()), ContentRegionAvail, ImVec2{ 0, 0 }, ImVec2{ 1, 1 });
+						ImGui::Image (reinterpret_cast<void *>(m_ActiveTestFramebuffers[test_index]->GetColorAttachmentRendererID ()), ContentRegionAvail, ImVec2{ 0, 1 }, ImVec2{ 1, 0 });
 						test->FlagSetter (TestBase::Viewport_Focused, ImGui::IsWindowFocused ());
 						test->FlagSetter (TestBase::Viewport_Hovered, ImGui::IsWindowHovered ());
 

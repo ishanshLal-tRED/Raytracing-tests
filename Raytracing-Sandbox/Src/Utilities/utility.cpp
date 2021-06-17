@@ -1,6 +1,8 @@
 ﻿#include "utility.h"
 #include <GLCore.h>
 #include <GLCoreUtils.h>
+#include <iostream>
+#include <fstream>
 #include <vector>
 #include <stb_image/stb_image.h>
 
@@ -175,10 +177,10 @@ namespace Helper
 	GLuint TEXTURE_2D::Upload (const uint8_t *data, uint32_t width, uint32_t height, uint8_t channels)
 	{
 		auto [incomingFormat, internalFormat] = NumOfIncomingChannelsToIncomingAndInternalFormat (channels);
-		return Upload (data, width, height, internalFormat, incomingFormat, GL_UNSIGNED_BYTE);
+		return Upload (data, width, height, internalFormat, incomingFormat, GL_UNSIGNED_BYTE, GL_LINEAR, GL_NEAREST);
 
 	}
-	GLuint TEXTURE_2D::Upload (const void *data, uint32_t width, uint32_t height, GLenum internal_format, GLenum src_format, GLenum src_type)
+	GLuint TEXTURE_2D::Upload (const void *data, uint32_t width, uint32_t height, GLenum internal_format, GLenum src_format, GLenum src_type, GLenum min_filter, GLenum mag_filter)
 	{
 		GLuint ID;
 		glGenTextures (1, &ID);
@@ -187,8 +189,8 @@ namespace Helper
 
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
+		glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter);
 
 		/// glTexStorage2D is: [it's not working]
 		//for (i = 0; i < levels; i++) { // levels = mipMap_Level
@@ -242,5 +244,55 @@ namespace Helper
 		} else {
 			return {};
 		}
+	}
+
+	namespace MATH
+	{
+		glm::mat3 MakeRotationX (float radians)
+		{
+			float c = cos (radians);
+			float s = sin (radians);
+			return (glm::mat3 (1.0f, 0.0f, 0.0f,
+							   0.0f, c, -s,
+							   0.0f, s, c));
+		}
+
+		glm::mat3 MakeRotationY (float radians)
+		{
+			float c = cos (radians);
+			float s = sin (radians);
+			return (glm::mat3 (c, 0.0f, s,
+							   0.0f, 1.0f, 0.0f,
+							   -s, 0.0f, c));
+		}
+		glm::mat3 MakeRotationZ (float radians)
+		{
+			float c = cos (radians);
+			float s = sin (radians);
+			return (glm::mat3 (c, -s, 0.0f,
+							   s, c, 0.0f,
+							   0.0f, 0.0f, 1.0f));
+		}
+	}
+	std::string ReadFileAsString (const char *filepath, char ignore_until)
+	{
+		std::string result;
+		std::ifstream in (filepath, std::ios::in | std::ios::binary); // ifstream closes itself due to RAII
+		if (in) {
+			in.ignore (256, ignore_until);
+			int start_at = (int)in.tellg () - 1;
+			in.seekg (0, std::ios::end);
+			size_t size = size_t(in.tellg ()) - start_at;
+			if (size != -1) {
+				result.resize (size);
+				in.seekg (start_at, std::ios::beg);
+				in.read (&result[0], size);
+			} else {
+				LOG_ERROR ("Could not read from file '{0}'", filepath);
+			}
+		} else {
+			LOG_ERROR ("Could not open file '{0}'", filepath);
+		}
+		return result;
 	}
 }

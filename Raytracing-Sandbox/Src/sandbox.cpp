@@ -6,6 +6,7 @@
 #include "Compute-Shader/02_Evolving_Pics/test.h"
 #include "In-One-Weekend/00_Image/image.h"
 #include "In-One-Weekend/01_Adding_Sphere/Sphere.h"
+#include "In-One-Weekend/02_Groups/groups.h"
 
 class MySandbox
 	: public GLCore::Application
@@ -20,6 +21,7 @@ public:
 		PushLayer<just_a_test> ();
 		PushLayer<In_One_Weekend::Image> ();
 		PushLayer<In_One_Weekend::Sphere> ();
+		PushLayer<In_One_Weekend::Groups> ();
 	}
 };
 

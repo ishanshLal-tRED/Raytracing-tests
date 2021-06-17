@@ -32,6 +32,8 @@ Compute-Shader/
 
 In-One-Weekend/
 	00_Image
+	01_Adding_Sphere
+	02_Grouping_Objects
 
 ```
 

@@ -13,7 +13,7 @@
 namespace Helper
 {
 	// delete after use
-	std::string ReadFileAsString (const char *filepath, char ignore_until = ' ');
+	std::string ReadFileAsString (const char *filepath, char ignore_until = 0);
 	namespace SHADER
 	{
 		std::optional<GLuint> CreateProgram (const char *source, GLenum shaderTyp);

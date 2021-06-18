@@ -8,7 +8,7 @@ namespace In_One_Weekend
 	{
 	public:
 		Sphere ()
-			: ComputeAndSqrShader_Base ("InOneWeekend - 01_Sphere", "writing on Screen", s_ComputeShader)
+			: ComputeAndSqrShader_Base ("InOneWeekend - 01_Sphere", "writing on Screen", Helper::ReadFileAsString ("./Src/In-One-Weekend/01_Adding_Sphere/computeShaderSrc.glsl", '#').c_str ())
 		{}
 		~Sphere () = default;
 		virtual void OnDetach () override;
@@ -38,6 +38,5 @@ namespace In_One_Weekend
 
 		const glm::ivec3 Work_Group_Count = { 0,0,0 }, Work_Group_Size = { 0,0,0 };
 		glm::ivec2 m_OutputTexDimensions = glm::ivec2 (100, 100);
-		static const char *s_ComputeShader;
 	};
 };

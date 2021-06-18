@@ -87,6 +87,8 @@ namespace In_One_Weekend
 		void CopyObjBuffer ();
 	private:
 		bool m_ShowNormals = true;
+		bool m_Cull_Frontside = false;
+		bool m_Cull_Backside = true;
 		
 		GLuint m_ComputeShaderOutputTex = 0;
 		GLuint m_GroupsDataBufferTex = 0;
@@ -97,12 +99,16 @@ namespace In_One_Weekend
 		GLuint m_CamDirnUniLoc = 0;
 		GLuint m_ShowNormalsUniLoc = 0;
 		GLuint m_NumOfGeometryUniLoc = 0;
+		GLuint m_Cull_FrontsideUniLoc = 0;
+		GLuint m_Cull_BacksideUniLoc = 0;
+		GLuint m_NumOfSamplesUniLoc = 0;
 		
+		const int m_NumOfObjInGroup = 1;
+		int m_NumOfSamplesPerPixel = 1;
+
 		float m_FocusDist = 1.0f;
 		glm::vec3 m_CameraPosn = glm::vec3 (0, 1, 10);
 		glm::vec2 m_CameraPitchYaw = glm::vec2 (0, -90);
-		
-		const int m_NumOfObjInGroup = 1;
 
 		const glm::ivec3 Work_Group_Count = { 0,0,0 }, Work_Group_Size = { 0,0,0 };
 		glm::ivec2 m_OutputTexDimensions = glm::ivec2 (100, 100);

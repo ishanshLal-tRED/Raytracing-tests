@@ -279,7 +279,8 @@ namespace Helper
 		std::string result;
 		std::ifstream in (filepath, std::ios::in | std::ios::binary); // ifstream closes itself due to RAII
 		if (in) {
-			in.ignore (256, ignore_until);
+			if(ignore_until)
+				in.ignore (256, ignore_until);
 			int start_at = (int)in.tellg () - 1;
 			in.seekg (0, std::ios::end);
 			size_t size = size_t(in.tellg ()) - start_at;

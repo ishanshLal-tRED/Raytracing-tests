@@ -31,9 +31,9 @@ Compute-Shader/
    02_Evolving_Pics (Partially-finished due to unforseen circumstances)
 
 In-One-Weekend/
-	00_Image
-	01_Adding_Sphere
-	02_Grouping_Objects
+   00_Image
+   01_Adding_Sphere
+   02_Grouping_Objects
 
 ```
 

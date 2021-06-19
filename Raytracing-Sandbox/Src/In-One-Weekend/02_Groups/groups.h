@@ -86,7 +86,7 @@ namespace In_One_Weekend
 		// Copy Geometry data from Object to data buffer and upload as textures to GPU
 		void CopyObjBuffer ();
 	private:
-		bool m_ShowNormals = true;
+		bool m_ShowNormals = false;
 		bool m_Cull_Frontside = false;
 		bool m_Cull_Backside = true;
 		
@@ -101,9 +101,11 @@ namespace In_One_Weekend
 		GLuint m_NumOfGeometryUniLoc = 0;
 		GLuint m_Cull_FrontsideUniLoc = 0;
 		GLuint m_Cull_BacksideUniLoc = 0;
+		GLuint m_NumOfBouncesUniLoc = 0;
 		GLuint m_NumOfSamplesUniLoc = 0;
 		
 		const int m_NumOfObjInGroup = 1;
+		int m_NumOfBouncesPerRay = 1;
 		int m_NumOfSamplesPerPixel = 1;
 
 		float m_FocusDist = 1.0f;

@@ -67,6 +67,7 @@ namespace In_One_Weekend
 			glUniform1i (m_NumOfGeometryUniLoc, m_NumOfObjInGroup);
 			glUniform1i (m_Cull_FrontsideUniLoc, int (m_Cull_Frontside));
 			glUniform1i (m_Cull_BacksideUniLoc, int (m_Cull_Backside));
+			glUniform1i (m_NumOfBouncesUniLoc, m_NumOfBouncesPerRay);
 			glUniform1i (m_NumOfSamplesUniLoc, m_NumOfSamplesPerPixel);
 
 			glUniform1f (m_FocusDistUniLoc, m_FocusDist);
@@ -173,7 +174,8 @@ namespace In_One_Weekend
 				ImGui::SameLine ();
 				ImGui::Checkbox ("Cull Back", &m_Cull_Backside);
 				
-				ImGui::InputInt ("No. of samples per pixel (min 1, max 16, hard coded in shader)", &m_NumOfSamplesPerPixel);
+				ImGui::InputInt ("No. of Ray Bounce", &m_NumOfBouncesPerRay);
+				ImGui::InputInt ("No. of Samples Per Pixel", &m_NumOfSamplesPerPixel);
 
 				ImGui::Text ("use W, A, S, D to move (while viewport focused)\nand UP, LEFT, DOWN, RIGHT to rotate camera\n");
 
@@ -231,6 +233,7 @@ namespace In_One_Weekend
 		m_NumOfGeometryUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfObj");
 		m_Cull_FrontsideUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_Cull_Front");
 		m_Cull_BacksideUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_Cull_Back");
+		m_NumOfBouncesUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfBounce");
 		m_NumOfSamplesUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfSamples");
 	}
 	void Groups::OnSquareShaderReload ()

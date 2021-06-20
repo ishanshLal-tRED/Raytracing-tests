@@ -2,11 +2,15 @@
 layout (local_size_x = 1, local_size_y = 1) in;
 layout (rgba32f, binding = 0) uniform image2D img_output;
 
+uniform ivec2 u_TileSize;
+uniform ivec2 u_TileIndex;
 uniform float u_FocusDist;
 uniform vec3 u_CameraPosn;
 uniform vec3 u_CameraDirn;
 uniform int u_NumOfBounce;
 uniform int u_NumOfSamples;
+uniform bool u_Diffuse;
+
 
 uniform int u_NumOfObj;
 layout (r32f, binding = 0) uniform sampler2D u_ObjGroupIDTexture;
@@ -20,6 +24,10 @@ struct Ray
 {
 	vec3 Orig;
 	vec3 Dirn;
+};
+struct Plane3D
+{
+	vec4 Eqn;
 };
 
 uniform bool u_ShowNormal;
@@ -120,9 +128,34 @@ vec3 SurfaceNormal(float t, Ray ray, int Obj_typ, vec3 scale){
 	return vec3(0,0,0);
 }
 
-vec4 out_Pixel (ivec2 pixel_coords)
+vec3 Intersect(Ray ray, Plane3D plane)
 {
-	ivec2 img_size = imageSize (img_output);
+	float t = -(plane.Eqn.x * (ray.Orig.x) + plane.Eqn.y * (ray.Orig.y) + plane.Eqn.z * (ray.Orig.z) + plane.Eqn.w) 
+			/ (plane.Eqn.x * (ray.Dirn.x) + plane.Eqn.y * (ray.Dirn.y) + plane.Eqn.z * (ray.Dirn.z));
+
+	float x = ray.Orig.x + ray.Dirn.x * t;
+	float y = ray.Orig.y + ray.Dirn.y * t;
+	float z = ray.Orig.z + ray.Dirn.z * t;
+
+	return vec3( x, y, z );
+}
+vec3 ProjectPoint(Plane3D plane, vec3 point){
+	return Intersect(Ray(point, plane.Eqn.xyz), plane);
+}
+vec3 ProjectVector(Plane3D plane, vec3 vector){
+	vec3 pt1 = ProjectPoint(plane, vec3(0));
+	vec3 pt2 = ProjectPoint(plane, vector);
+	return (pt2 - pt1);
+}
+Plane3D CreatePlane(vec3 norml, vec3 point)
+{
+	Plane3D plane;
+	float w = -(norml.x * point.x + norml.y * point.y + norml.z * point.z) / length(norml);
+	plane.Eqn = vec4(norml, w);
+	return plane;
+}
+vec4 out_Pixel (ivec2 pixel_coords, ivec2 img_size)
+{
 	float aspectRatio = float (img_size.x)/img_size.y;
 	const vec3 world_up = vec3 (0, 1, 0);
 	float scr_x = (pixel_coords.x*2.0 - img_size.x)/(2.0*img_size.x);
@@ -138,10 +171,10 @@ vec4 out_Pixel (ivec2 pixel_coords)
 	for (int samples_processed = 0; samples_processed < u_NumOfSamples; samples_processed++){
 		vec3 ray_orig = u_CameraPosn;
 		vec3 ray_dirn;
+		ivec2 process_indexs;
 		{
 			vec3 cam_right = cross (u_CameraDirn, world_up);
 			vec3 cam_up = cross (cam_right, u_CameraDirn);
-			ivec2 process_indexs;
 			if(focus < grid) {
 				if(x == 0 && y == 0){
 					focus++;
@@ -210,7 +243,20 @@ vec4 out_Pixel (ivec2 pixel_coords)
 			ray_orig = ray_orig + (min_t_depth - 0.00005)*ray_dirn; // removing just a tinybit to ensure point is above the surface instead of being inside the shape
 			vec3 true_surface_nrml = normalize(inverse(rot_matrix_of_Intersected_obj)*normal_to_surface);
 			vec3 reflection_dirn = reflect(ray_dirn, true_surface_nrml);
-			ray_dirn = reflection_dirn;
+			if(u_Diffuse){
+				float R = sqrt(3)/2;
+				float dot_pdt = dot(true_surface_nrml, reflection_dirn);
+				float mod_r = R/(1.0 - dot_pdt*dot_pdt);
+				vec3 UpDirnOfRR, pointOfRR;{
+				vec3 center = true_surface_nrml*sqrt(1 - R*R);
+				UpDirnOfRR = ProjectVector(CreatePlane(true_surface_nrml, center), reflection_dirn*mod_r);
+				pointOfRR = center - UpDirnOfRR;}
+				vec3 RightDirnOfRR = cross(UpDirnOfRR, true_surface_nrml);
+				float factor = (1.0/(grid > 1 ? grid - 1.0 : 1));
+				vec3 left_mov = (UpDirnOfRR - RightDirnOfRR)*factor;
+				vec3 up_mov = (UpDirnOfRR + RightDirnOfRR)*factor;
+				ray_dirn = normalize(pointOfRR + left_mov*process_indexs.x + up_mov*process_indexs.y);
+			} else ray_dirn = reflection_dirn;
 			
 			normal_to_surface = vec3(0);
 			min_t_depth = 32000;
@@ -223,10 +269,12 @@ vec4 out_Pixel (ivec2 pixel_coords)
 void main ()
 {
 	// get index in global work group i.e x,y position
-	ivec2 pixel_coords = ivec2 (gl_WorkGroupID.xy); // layout_size_x represents sampling amount
+	ivec2 img_size = imageSize (img_output);
+	ivec2 pixel_coords = ivec2 (gl_WorkGroupID.xy);
+	pixel_coords += ivec2(u_TileIndex.x*u_TileSize.x, u_TileIndex.y*u_TileSize.y);
 
 	// base pixel color for image
-	vec4 pixel = out_Pixel (pixel_coords);
+	vec4 pixel = out_Pixel (pixel_coords, img_size);
 
 	// output to a specific pixel in the image
 	imageStore (img_output, pixel_coords, pixel);

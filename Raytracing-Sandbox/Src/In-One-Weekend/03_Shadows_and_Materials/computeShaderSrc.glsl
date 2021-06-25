@@ -9,17 +9,19 @@ uniform vec3 u_CameraPosn;
 uniform vec3 u_CameraDirn;
 uniform int u_NumOfBounce;
 uniform int u_NumOfSamples;
-uniform bool u_Diffuse;
+
+uniform bool u_ShowNormal;
 
 
 uniform int u_NumOfObj;
 layout (r32f, binding = 0) uniform sampler2D u_ObjGroupIDTexture;
 layout (rgba32f, binding = 1) uniform sampler2D u_ObjGroupDataTexture;
 
+#define CUBOID     1 // const int 
+#define ELLIPSOID  2 // const int 
+#define PI 3.1415926538
+const float PHI = PI*(3.0 - sqrt(5.0));
 
-const int CUBOID = 1;
-const int ELLIPSOID = 2;
-//const int NumOfObj = textureSize(u_ObjGroupIDTexture, 0).x;
 struct Ray
 {
 	vec3 Orig;
@@ -29,19 +31,21 @@ struct Plane3D
 {
 	vec4 Eqn;
 };
+struct RayReturnData{
+    vec3 point;
+    vec3 normal;
+    vec3 reflected;
 
-uniform bool u_ShowNormal;
-uniform bool u_Cull_Front;
-uniform bool u_Cull_Back;
+    vec3 material; // refractivity, reflectivity, scatteritivity
+    vec3 color;
+};
 
 float DistanceFrom(Ray ray, vec3 pt){
 	return length(cross(pt - ray.Orig, ray.Dirn));
 };
-Ray CreateRay (vec3 pt1, vec3 pt2)
-{
+Ray CreateRay (vec3 pt1, vec3 pt2){
 	return Ray (pt1, normalize (pt2 - pt1));
 };
-
 float t_RayXObj(Ray ray, int Obj_typ, vec3 scale){
 	float t = -1.0;
 	switch(Obj_typ){
@@ -58,16 +62,8 @@ float t_RayXObj(Ray ray, int Obj_typ, vec3 scale){
 					float _t[2];
 					_t[0] = (-half_b - sqrt(determinant)) / a;
 					_t[1] = (-half_b + sqrt(determinant)) / a;
-					if(!u_Cull_Back && !u_Cull_Front){ // find min
-						t = _t[0];
-						if(_t[0] > _t[1] || _t[0] < 0) // _t[1] < 0, it will be handled when returning from function
-							t = _t[1];
-						break;
-					}else if(!u_Cull_Front){
-						t = min(_t[0], _t[1]);
-					}else if(!u_Cull_Back){
-						t = max(_t[0], _t[1]); 
-					}
+					
+					t = (_t[0] > _t[1] || _t[0] < 0) ? _t[1] : _t[0];// _t[1] < 0, it will be handled when returning from function
 				}
 			}; break;
 		case CUBOID:{
@@ -86,15 +82,7 @@ float t_RayXObj(Ray ray, int Obj_typ, vec3 scale){
 				tmin = max(tmin, min(min(t1, t2), tmax));
 		        tmax = min(tmax, max(max(t1, t2), tmin));
 		    }
-			if(tmax > max(tmin, 0.0)){
-				if(!u_Cull_Back && !u_Cull_Front){				
-					t = tmin > 0 ? tmin : tmax;
-				}else if(!u_Cull_Front){
-					t = tmin;
-				}else if(!u_Cull_Back){
-					t = tmax; 
-				}
-			}
+			t = tmax > tmin ? (tmin > 0 ? tmin : tmax) : -1.0;
 		}; break;
 	}
 	return (t > 0 ? t : -1);
@@ -122,14 +110,16 @@ vec3 SurfaceNormal(float t, Ray ray, int Obj_typ, vec3 scale){
 		    };
 			vec3 result = vec3(0, 0, 0);
 			result[index/2] = index%2 == 0 ? 1 : -1;
-			// result = vec3(t/20, t/15, t/10); // for some beautiful result
 			return result;
 	}
 	return vec3(0,0,0);
 }
+vec3 Background_Color(vec3 ray_dirn){
+	float t = (ray_dirn.y + 1.0)*0.5;
+	return ((1.0 - t)*vec3 (1.0, 1.0, 1.0) + t*vec3 (0.3, 0.4, 1.0));
+}
 
-vec3 Intersect(Ray ray, Plane3D plane)
-{
+vec3 IntersectRayPlane(Ray ray, Plane3D plane){
 	float t = -(plane.Eqn.x * (ray.Orig.x) + plane.Eqn.y * (ray.Orig.y) + plane.Eqn.z * (ray.Orig.z) + plane.Eqn.w) 
 			/ (plane.Eqn.x * (ray.Dirn.x) + plane.Eqn.y * (ray.Dirn.y) + plane.Eqn.z * (ray.Dirn.z));
 
@@ -140,141 +130,237 @@ vec3 Intersect(Ray ray, Plane3D plane)
 	return vec3( x, y, z );
 }
 vec3 ProjectPoint(Plane3D plane, vec3 point){
-	return Intersect(Ray(point, plane.Eqn.xyz), plane);
+	return IntersectRayPlane(Ray(point, plane.Eqn.xyz), plane);
 }
 vec3 ProjectVector(Plane3D plane, vec3 vector){
 	vec3 pt1 = ProjectPoint(plane, vec3(0));
 	vec3 pt2 = ProjectPoint(plane, vector);
 	return (pt2 - pt1);
 }
-Plane3D CreatePlane(vec3 norml, vec3 point)
-{
+Plane3D CreatePlane(vec3 norml, vec3 point){
 	Plane3D plane;
 	float w = -(norml.x * point.x + norml.y * point.y + norml.z * point.z) / length(norml);
 	plane.Eqn = vec4(norml, w);
 	return plane;
 }
+
+vec3 fibonacciHemiSpherePtDirn(int sample_index, int max_samples, float scatteritivity, vec3 focus_dirn){
+	float y = 1 - (sample_index / float(max_samples - 1)); // Y goes 1 to 0 (since sample_index <= max_sample)
+	float radius = sqrt(1 - y*y); // radius at Y
+
+	float theta = PHI*sample_index;
+
+	float x = cos(theta) * radius;
+	float z = sin(theta) * radius;
+	// x, y, z represents fibinachhi(pardon for spelling) sphere
+
+	x *= scatteritivity; // scaling down sphere from 1.0 to scatteritivity
+	y *= scatteritivity;
+	z *= scatteritivity;
+
+	vec3 y_cap = focus_dirn; // For rotating sphere up
+	vec3 z_cap = normalize(cross(vec3(0, 1.0, 0), y_cap)); // any perpendicular 
+	vec3 x_cap = normalize(cross(y_cap, z_cap));
+
+	vec3 pt = focus_dirn + (x*x_cap + y*y_cap + z*z_cap); // rotated point & move origin of sphere to tip of reflection
+	return normalize(pt);
+}
+
+#define id_tex_size_x textureSize(u_ObjGroupIDTexture, 0).x // const int 
+#define data_tex_size textureSize(u_ObjGroupDataTexture, 0) // const ivec2
+// returns point of hit and associated normal, material, color at that point
+
+RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float color_contribution){
+    float min_t_depth = max_t_depth;
+    mat3 rot_matrix_of_Intersected_obj, matrix;
+    RayReturnData data;
+	int Type = 0;
+	vec3 position, scale, _color, _material, final_tranf_ray_dirn = vec3(0);
+    for(int j = 0; j < u_NumOfObj; j++){
+		Type = int(texture(u_ObjGroupIDTexture, vec2((j+0.1)/id_tex_size_x, 0.1)).r);					   // texture fetch is expensive
+		position  = texture(u_ObjGroupDataTexture, vec2(0.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		matrix[0] = texture(u_ObjGroupDataTexture, vec2(1.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		matrix[1] = texture(u_ObjGroupDataTexture, vec2(2.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		matrix[2] = texture(u_ObjGroupDataTexture, vec2(3.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		scale     = texture(u_ObjGroupDataTexture, vec2(4.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		_color    = texture(u_ObjGroupDataTexture, vec2(5.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		_material = texture(u_ObjGroupDataTexture, vec2(6.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		
+		vec3 transformed_ray_orig = matrix*(g_origin - position);
+		vec3 transformed_ray_dirn = matrix*g_dirn;
+		Ray transformed_ray = Ray(transformed_ray_orig, normalize(transformed_ray_dirn)); // insure dirn is normalized
+		float t = t_RayXObj(transformed_ray, Type, scale);
+        // Although these points are transformed, they can still be directly used to campare distance or depth
+		if(min_t_depth > t && t > 0){
+			data.normal = SurfaceNormal(t, transformed_ray, Type, scale);
+			data.color = _color;
+			data.material = _material;
+            //data.objectID = j;
+
+			final_tranf_ray_dirn = transformed_ray_dirn;
+
+			rot_matrix_of_Intersected_obj = matrix;
+			min_t_depth = t;
+		}
+	}
+    if(min_t_depth < max_t_depth){
+		// calculate reflection
+		{
+			vec3 _normal = dot(data.normal, final_tranf_ray_dirn) > 0 ? -data.normal : data.normal; 
+			// taking hit point as origin
+			vec3 normal_to_i_n_r = normalize(cross(_normal, final_tranf_ray_dirn));
+			vec3 normal_to_only_n = normalize(cross(normal_to_i_n_r, _normal));
+			// scatteritivity = data.material.z
+			float one_div_sqrt_one_plus_s_sqr = 1.0/sqrt(1.0 + data.material.z*data.material.z) ;
+			vec3 max_reflect = data.material.z*one_div_sqrt_one_plus_s_sqr*_normal + one_div_sqrt_one_plus_s_sqr*normal_to_only_n;
+			vec3 reflected = reflect(final_tranf_ray_dirn, _normal);
+			data.reflected = (dot(reflected, _normal) > dot(max_reflect, _normal)) ? reflected : max_reflect;
+		}
+		rot_matrix_of_Intersected_obj = inverse(rot_matrix_of_Intersected_obj);
+
+        data.point = g_origin + min_t_depth*g_dirn; // removing just a tinybit to ensure point is above the surface instead of being inside the shape
+        data.normal = normalize(rot_matrix_of_Intersected_obj*data.normal);
+        data.reflected = normalize(rot_matrix_of_Intersected_obj*data.reflected);
+        data.color*=color_contribution;
+    }else data.point = vec3(0), data.normal = vec3(0);
+    return data;
+};
+
+#define stack_capacity 5
+
+Ray   ray_stack[stack_capacity];
+float ray_contribution_stack[stack_capacity];
+int   ray_bounce_stack[stack_capacity];
+int   ray_stack_size = 0;
+
+void stack_push(Ray ray, float color_contribution, int bounced){
+    if(ray_stack_size < stack_capacity){
+        ray_stack[ray_stack_size] = ray;
+        ray_contribution_stack[ray_stack_size] = color_contribution;
+        ray_bounce_stack[ray_stack_size] = bounced;
+        ray_stack_size++;
+    }
+}
+Ray stack_pop_out(out float color_contribution, out int bounced){
+    if(ray_stack_size > 0){
+        ray_stack_size--;
+        color_contribution = ray_contribution_stack[ray_stack_size];
+        bounced = ray_bounce_stack[ray_stack_size];
+        return ray_stack[ray_stack_size];
+    }else return Ray(vec3(0), vec3(0));
+}
+// returns color captured by ray
+vec3 LaunchRays(vec3 ray_origin, vec3 ray_dirn, int sample_index, const int max_samples, const int max_bounces){
+    
+    stack_push(Ray(ray_origin, ray_dirn), 1.0, 0);
+    
+    vec3 sample_color = vec3(0);
+
+    while(ray_stack_size > 0){
+
+        float contribution;int bounced;
+        Ray curr_ray = stack_pop_out(contribution, bounced);
+
+        RayReturnData data = LaunchRay(curr_ray.Orig, curr_ray.Dirn, 32000, contribution);
+        
+        bool ray_hit = dot(data.normal, data.normal) > 0.9;// or less than 1 i.e 0, no point found
+		
+        // else add_color, and try push to stack
+        sample_color += contribution*(ray_hit ? data.color : Background_Color(curr_ray.Dirn));
+
+        if(bounced < max_bounces && ray_hit){
+            bounced++; // curr_ray can bounce more
+			bool TIR = false; // Total Internal Refraction
+            if(data.material.x > 0.05){ // refractivity
+                float next_ray_contribution = data.material.x*contribution;
+                vec3 refraction_dirn; {
+					float cos_theta = dot(data.normal, curr_ray.Dirn); // note theta can be both -tve(outer hit) and +tve(inner hit, check TIR)
+					float sin_theta = sqrt(1.0 - cos_theta*cos_theta);
+					float refraction_ratio_x_sin_theta = (cos_theta > 0 ? 1.5/1.0 : 1.0/1.5)*sin_theta;
+					if(refraction_ratio_x_sin_theta > 1.0){
+						refraction_dirn = data.reflected;
+						TIR = true;
+					}else{ // No TIR
+						vec3 _normal = cos_theta > 0 ? data.normal : -data.normal;
+						vec3 y_cap = _normal*cos_theta;
+
+						vec3 x_cap = y_cap + curr_ray.Dirn;
+						//                                   same_dirn
+						refraction_dirn = (refraction_ratio_x_sin_theta*_normal) + (sqrt(1.0 - refraction_ratio_x_sin_theta*refraction_ratio_x_sin_theta)*x_cap);
+					}
+				}
+				// uniform distribution on sphere
+				vec3 sample_dirn = fibonacciHemiSpherePtDirn(sample_index, max_samples, data.material.z, refraction_dirn);
+				Ray new_reflctd_ray = Ray(data.point + (TIR ? -0.00003*curr_ray.Dirn : 0.00003*curr_ray.Dirn), sample_dirn); // rectification
+				stack_push(new_reflctd_ray, next_ray_contribution, bounced);// use scatteritivity(data.material.z) and sample_index to construct ray then push ray to stack
+            }
+            if(data.material.y > 0.05 && !TIR){ // reflectivity // when no TIR
+                float next_ray_contribution = data.material.y*contribution;
+                // uniform distribution on sphere
+				vec3 sample_dirn = fibonacciHemiSpherePtDirn(sample_index, max_samples, data.material.z, data.reflected);
+				// Ray new_reflctd_ray = Ray(data.point, sample_dirn);
+				stack_push(Ray(data.point - (0.00003*curr_ray.Dirn), sample_dirn), next_ray_contribution, bounced);
+                // use scatteritivity(data.material.z) and sample_index to construct ray then push ray to stack
+            }
+        }
+    }
+    return sample_color;
+}
+
+#define world_up vec3(0, 1, 0)
+
 vec4 out_Pixel (ivec2 pixel_coords, ivec2 img_size)
 {
-	float aspectRatio = float (img_size.x)/img_size.y;
-	const vec3 world_up = vec3 (0, 1, 0);
-	float scr_x = (pixel_coords.x*2.0 - img_size.x)/(2.0*img_size.x);
-	scr_x *= aspectRatio;
-	float scr_y = (pixel_coords.y*2.0 - img_size.y)/(2.0*img_size.y);
-
-	vec3 final_color = vec3(0);
-	int focus = 0, x = 0, y = 0;
+	const float aspectRatio = float (img_size.x)/img_size.y;
+	
 	int grid = 1;
 	while(grid*grid < u_NumOfSamples)
 		grid++;
 	
-	for (int samples_processed = 0; samples_processed < u_NumOfSamples; samples_processed++){
+	const float scr_x = (aspectRatio * (pixel_coords.x*2.0 - img_size.x)) / (2.0*img_size.x);
+	const float scr_y = (pixel_coords.y*2.0 - img_size.y)/(2.0*img_size.y);
+	const float del_scr_x = aspectRatio/float(img_size.x*grid);
+	const float del_scr_y = 1.0/float(img_size.y*grid);
+	
+	vec3 final_color = vec3(0);
+	int focus = 0, x = 0, y = 0;
+    for (int samples_processed = 0; samples_processed < u_NumOfSamples; samples_processed++){
 		vec3 ray_orig = u_CameraPosn;
 		vec3 ray_dirn;
-		ivec2 process_indexs;
-		{
+		ivec2 sample_indexs;{
 			vec3 cam_right = cross (u_CameraDirn, world_up);
 			vec3 cam_up = cross (cam_right, u_CameraDirn);
 			if(focus < grid) {
 				if(x == 0 && y == 0){
 					focus++;
-					x = focus, y = focus, process_indexs = ivec2(focus,focus);;
+					x = focus, y = focus, sample_indexs = ivec2(focus,focus);;
 				}else{
-					if(x < y) y--, process_indexs = ivec2(focus, y);
-					else x--, process_indexs = ivec2(x, focus);
+					if(x < y) y--, sample_indexs = ivec2(focus, y);
+					else x--, sample_indexs = ivec2(x, focus);
 				}
 			}else return vec4 (final_color/samples_processed, 1.0);
 
-			float del_scr_x = aspectRatio/float(img_size.x*grid);
-			float del_scr_y = 1.0/float(img_size.y*grid);
-			ray_dirn = normalize(u_CameraDirn*u_FocusDist + cam_right*(scr_x + (del_scr_x*process_indexs.x)) + cam_up*(scr_y + (del_scr_y*process_indexs.y)));
+			ray_dirn = normalize(u_CameraDirn*u_FocusDist + cam_right*(scr_x + (del_scr_x*sample_indexs.x)) + cam_up*(scr_y + (del_scr_y*sample_indexs.y)));
 		}
-// C	olor
-		float min_t_depth = 32000; // decrease to 50 on ray bounce
-		vec3 normal_to_surface = u_CameraDirn;
-		vec3 final_sample_color = vec3(0); 
-		for(int i = 0; i < u_NumOfBounce; i++){
-
-			vec3 sample_color;{ // background
-				float t = (ray_dirn.y + 1.0)*0.5;
-				sample_color = ((1.0 - t)*vec3 (1.0, 1.0, 1.0) + t*vec3 (0.3, 0.4, 1.0));
-			}
-			vec3 position, scale, obj_color;
-			mat3 matrix;
-			mat3 rot_matrix_of_Intersected_obj;
-			int Type;
-
-//De	pth Testing ray with objects
-			const int id_tex_size_x = textureSize(u_ObjGroupIDTexture, 0).x;
-			const ivec2 data_tex_size = textureSize(u_ObjGroupDataTexture, 0);
-			for(int j = 0; j < u_NumOfObj; j++){
-				Type = int(texture(u_ObjGroupIDTexture, vec2((j+0.1)/id_tex_size_x, 0.1)).r);					   // texture fetch is expensive
-				position  = texture(u_ObjGroupDataTexture, vec2(0.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-				matrix[0] = texture(u_ObjGroupDataTexture, vec2(1.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-				matrix[1] = texture(u_ObjGroupDataTexture, vec2(2.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-				matrix[2] = texture(u_ObjGroupDataTexture, vec2(3.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-				scale     = texture(u_ObjGroupDataTexture, vec2(4.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-				obj_color = texture(u_ObjGroupDataTexture, vec2(5.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-
-				// Although these points are transformed, they can still be directly used to 
-				vec3 transformed_ray_orig = matrix*(ray_orig - position);
-				vec3 transformed_ray_dirn = matrix*ray_dirn;
-
-				Ray transformed_ray = Ray(transformed_ray_orig, normalize(transformed_ray_dirn)); // insure dirn is normalized
-
-				float t = t_RayXObj(transformed_ray, Type, scale);
-				if(min_t_depth > t && t > 0){
-					normal_to_surface = SurfaceNormal(t, transformed_ray, Type, scale);
-					sample_color = obj_color;
-					rot_matrix_of_Intersected_obj = matrix;
-					min_t_depth = t;
-				}
-				
-			}
-			final_sample_color += (sample_color*pow(0.4,i));
-			if(u_ShowNormal){
-				final_sample_color = normal_to_surface;
-				break; // breaking out of bounce loop
-			}
-			if(min_t_depth > 30000){
-				break; // breaking out of bounce loop
-			}
-			// Bounce Ray
-			ray_orig = ray_orig + (min_t_depth - 0.00005)*ray_dirn; // removing just a tinybit to ensure point is above the surface instead of being inside the shape
-			vec3 true_surface_nrml = normalize(inverse(rot_matrix_of_Intersected_obj)*normal_to_surface);
-			vec3 reflection_dirn = reflect(ray_dirn, true_surface_nrml);
-			if(u_Diffuse){
-				float R = sqrt(3)/2;
-				float dot_pdt = dot(true_surface_nrml, reflection_dirn);
-				float mod_r = R/(1.0 - dot_pdt*dot_pdt);
-				vec3 UpDirnOfRR, pointOfRR;{
-				vec3 center = true_surface_nrml*sqrt(1 - R*R);
-				UpDirnOfRR = ProjectVector(CreatePlane(true_surface_nrml, center), reflection_dirn*mod_r);
-				pointOfRR = center - UpDirnOfRR;}
-				vec3 RightDirnOfRR = cross(UpDirnOfRR, true_surface_nrml);
-				float factor = (1.0/(grid > 1 ? grid - 1.0 : 1));
-				vec3 left_mov = (UpDirnOfRR - RightDirnOfRR)*factor;
-				vec3 up_mov = (UpDirnOfRR + RightDirnOfRR)*factor;
-				ray_dirn = normalize(pointOfRR + left_mov*process_indexs.x + up_mov*process_indexs.y);
-			} else ray_dirn = reflection_dirn;
-			
-			normal_to_surface = vec3(0);
-			min_t_depth = 32000;
+        
+        // can add max_depth and depth fallof (amount of depth to reduce after each bounce)
+		if(!u_ShowNormal){
+        	final_color += LaunchRays(ray_orig, ray_dirn, samples_processed, u_NumOfSamples, u_NumOfBounce);
+		}else{
+			RayReturnData data = LaunchRay(ray_orig, ray_dirn, 32000, 1.0);
+			final_color += data.normal;
 		}
-		final_color += final_sample_color;
-
-	}
-	return vec4 (final_color/u_NumOfSamples, 1.0);
+    }
+    return vec4(final_color/u_NumOfSamples, 1.0);
 }
 void main ()
 {
 	// get index in global work group i.e x,y position
-	ivec2 img_size = imageSize (img_output);
 	ivec2 pixel_coords = ivec2 (gl_WorkGroupID.xy);
 	pixel_coords += ivec2(u_TileIndex.x*u_TileSize.x, u_TileIndex.y*u_TileSize.y);
 
 	// base pixel color for image
-	vec4 pixel = out_Pixel (pixel_coords, img_size);
+	vec4 pixel = out_Pixel (pixel_coords, imageSize (img_output));
 
 	// output to a specific pixel in the image
 	imageStore (img_output, pixel_coords, pixel);

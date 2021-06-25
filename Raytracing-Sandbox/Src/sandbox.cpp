@@ -21,8 +21,8 @@ public:
 		PushLayer<BlurWithComputeShader_Test> ();
 		PushLayer<just_a_test> ();
 		PushLayer<In_One_Weekend::Image> ();
-		//PushLayer<In_One_Weekend::Sphere> ();
-		//PushLayer<In_One_Weekend::Groups> ();
+		PushLayer<In_One_Weekend::Sphere> ();
+		PushLayer<In_One_Weekend::Groups> ();
 		PushLayer<In_One_Weekend::Adding_Materials> ();
 	}
 };

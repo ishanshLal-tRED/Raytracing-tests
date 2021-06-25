@@ -14,6 +14,7 @@ namespace In_One_Weekend
 			float inv_rotn_mat3[3*3] = { 0,0,0,0,0,0,0,0,0 };
 			float scale[3] = { 0,0,0 };
 			float color[3] = { 0,0,0 };
+			float material[3] = { 0,0,0 };
 		};
 	public:
 		Adding_Materials ()
@@ -45,20 +46,24 @@ namespace In_One_Weekend
 			bool FillBuffer (GeometryBuff &buffer) {
 				bool changed = false;
 				for (int i = 0; i < 3; i++) {
-					if (buffer.position[i] != Position[i%3])
-						buffer.position[i]  = Position[i%3], changed = true;
+					changed |= (buffer.position[i] != Position[i]);
+					buffer.position[i]  = Position[i];
 				}
 				for (int i = 0; i < 9; i++) {
-					if (buffer.inv_rotn_mat3[i] != _inv_rotation_matrix[i/3][i%3])
-						buffer.inv_rotn_mat3[i]  = _inv_rotation_matrix[i/3][i%3], changed = true;
+					changed |= (buffer.inv_rotn_mat3[i] != _inv_rotation_matrix[i / 3][i % 3]);
+					buffer.inv_rotn_mat3[i] = _inv_rotation_matrix[i / 3][i % 3];
 				}
 				for (int i = 0; i < 3; i++) {
-					if (buffer.scale[i] != Scale[i%3])
-						buffer.scale[i]  = Scale[i%3], changed = true;
+					changed |= (buffer.scale[i] != Scale[i]);
+					buffer.scale[i] = Scale[i];
 				}
 				for (int i = 0; i < 3; i++) {
-					if (buffer.color[i] != Color[i%3])
-						buffer.color[i]  = Color[i%3], changed = true;
+					changed |= (buffer.color[i] != Color[i]);
+					buffer.color[i] = Color[i];
+				}
+				for (int i = 0; i < 3; i++) {
+					changed |= (buffer.material[i] != Material[i]);
+					buffer.material[i] = Material[i];
 				}
 				return changed;
 			}
@@ -79,6 +84,7 @@ namespace In_One_Weekend
 			glm::vec3 Rotation = {0, 0, 0};
 			glm::vec3 Scale = {1, 1, 1};
 			glm::vec3 Color = {1, 0, 0};
+			glm::vec3 Material = {0.2, 0.3, 0.1};
 		private:
 			glm::mat3 _inv_rotation_matrix = glm::mat3(1.0f);
 		};
@@ -89,9 +95,9 @@ namespace In_One_Weekend
 		bool m_UpdateFrame = false;
 
 		bool m_ShowNormals = false;
-		bool m_Diffused = true;
-		bool m_Cull_Frontside = false;
-		bool m_Cull_Backside = true;
+		// bool m_Diffused = true;
+		// bool m_Cull_Frontside = false;
+		// bool m_Cull_Backside = true;
 
 		int16_t m_TileIndexs[2] = {0, 0};
 		uint16_t m_MaxTileIndexs[2] = {0, 0};
@@ -111,25 +117,25 @@ namespace In_One_Weekend
 		GLuint m_CamDirnUniLoc = 0;
 		GLuint m_ShowNormalsUniLoc = 0;
 		GLuint m_NumOfGeometryUniLoc = 0;
-		GLuint m_Cull_FrontsideUniLoc = 0;
-		GLuint m_Cull_BacksideUniLoc = 0;
+		// GLuint m_Cull_FrontsideUniLoc = 0;
+		// GLuint m_Cull_BacksideUniLoc = 0;
 		GLuint m_NumOfBouncesUniLoc = 0;
 		GLuint m_NumOfSamplesUniLoc = 0;
-		GLuint m_DiffusedUniLoc = 0;
+		// GLuint m_DiffusedUniLoc = 0;
 		GLuint m_TileIndexsLocation = 0; // to track which tile is being processed
 		GLuint m_TileSizeLocation = 0;
-		
-		const int m_NumOfObjInGroup = 2;
-		int m_NumOfBouncesPerRay = 10;
-		int m_NumOfSamplesPerPixel = 100;
+
+		const int m_NumOfObjInGroup = 3;
+		int m_NumOfBouncesPerRay = 5;
+		int m_NumOfSamplesPerPixel = 36;
 
 		float m_FocusDist = 1.0f;
-		glm::vec3 m_CameraPosn = glm::vec3 (0, 4.2, 10);
-		glm::vec2 m_CameraPitchYaw = glm::vec2 (-23, -90);
+		glm::vec3 m_CameraPosn = glm::vec3 (3, 2, 10);//(0, 4.2, 10);
+		glm::vec2 m_CameraPitchYaw = glm::vec2 (-13, -120);
 
 		const glm::ivec3 Work_Group_Count = { 0,0,0 }, Work_Group_Size = { 0,0,0 };
-		int m_OutputResolutionHeight = 700;
-		glm::ivec2 m_OutputTexDimensions = glm::ivec2 (700, 700);
+		int m_OutputResolutionHeight = 300;
+		glm::ivec2 m_OutputTexDimensions = glm::ivec2 (300, 300);
 		const glm::ivec2 m_TileSize = glm::ivec2 (100, 100);
 
 		// each Element has vec3[6], bool is there to keep track whether buffer is ready needed to be re-uploaded

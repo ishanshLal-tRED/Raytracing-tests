@@ -46,12 +46,20 @@ namespace In_One_Weekend
 		{// pre-constructing a scene
 			m_GeometryGroup[0].Typ = Geom_type::ELLIPSOID;
 			m_GeometryGroup[0].Color = glm::vec3(0);
+			m_GeometryGroup[0].Scale = glm::vec3 (2);
+			m_GeometryGroup[0].Position.y = 1;
+			m_GeometryGroup[0].Material = glm::vec3(1, 0, 0);
 			m_GeometryGroup[1].Typ = Geom_type::CUBOID;
 			m_GeometryGroup[1].Position.z = -2;
 			m_GeometryGroup[1].Position.y = -1.5f;
 			m_GeometryGroup[1].Scale.x = 10;
 			m_GeometryGroup[1].Scale.z = 10;
 			m_GeometryGroup[1].Color = glm::vec3 (0.02, 0.0125, 0.08);
+			m_GeometryGroup[2].Typ = Geom_type::CUBOID;
+			m_GeometryGroup[2].Position.x = -1;
+			m_GeometryGroup[2].Position.y = -.75f;
+			m_GeometryGroup[2].Position.z = 1.5f;
+			m_GeometryGroup[2].Scale = glm::vec3(.5f);
 		}
 	}
 	void Adding_Materials::OnDetach ()
@@ -72,7 +80,7 @@ namespace In_One_Weekend
 			CopyObjBuffer ();
 			m_UpdateFrame = false;
 			m_MaxTileIndexs[0] = (m_OutputTexDimensions.x/m_TileSize.x), m_MaxTileIndexs[1] = (m_OutputTexDimensions.y/m_TileSize.y);
-			m_TileIndexs[0] = (m_MaxTileIndexs[0]-1.1f)/2, m_TileIndexs[1] = (m_MaxTileIndexs[1]-1.1f)/2;
+			m_TileIndexs[0] = (m_MaxTileIndexs[0]-0.1f)/2, m_TileIndexs[1] = (m_MaxTileIndexs[1]-0.1f)/2;
 
 			m_TileRingLimit00[0] =   m_TileIndexs[0];
 			m_TileRingLimit00[1] =   m_TileIndexs[1];
@@ -109,10 +117,10 @@ namespace In_One_Weekend
 					glUseProgram (m_ComputeShaderProgID);
 
 					glUniform1i (m_ShowNormalsUniLoc, int (m_ShowNormals));
-					glUniform1i (m_DiffusedUniLoc, int (m_Diffused));
+					//glUniform1i (m_DiffusedUniLoc, int (m_Diffused));
 					glUniform1i (m_NumOfGeometryUniLoc, m_NumOfObjInGroup);
-					glUniform1i (m_Cull_FrontsideUniLoc, int (m_Cull_Frontside));
-					glUniform1i (m_Cull_BacksideUniLoc, int (m_Cull_Backside));
+					//glUniform1i (m_Cull_FrontsideUniLoc, int (m_Cull_Frontside));
+					//glUniform1i (m_Cull_BacksideUniLoc, int (m_Cull_Backside));
 					glUniform1i (m_NumOfBouncesUniLoc, m_NumOfBouncesPerRay);
 					glUniform1i (m_NumOfSamplesUniLoc, m_NumOfSamplesPerPixel);
 
@@ -228,12 +236,12 @@ namespace In_One_Weekend
 				m_UpdateFrame |= ImGui::DragFloat ("Focus Distance", &m_FocusDist, 0.1f);
 
 				m_UpdateFrame |= ImGui::Checkbox ("Show Normals", &m_ShowNormals);
-				ImGui::SameLine ();
-				m_UpdateFrame |= ImGui::Checkbox ("Diffused", &m_Diffused);
 
-				m_UpdateFrame |= ImGui::Checkbox ("Cull Front", &m_Cull_Frontside);
-				ImGui::SameLine ();
-				m_UpdateFrame |= ImGui::Checkbox ("Cull Back", &m_Cull_Backside);
+				//ImGui::SameLine ();
+				//m_UpdateFrame |= ImGui::Checkbox ("Diffused", &m_Diffused);
+				//m_UpdateFrame |= ImGui::Checkbox ("Cull Front", &m_Cull_Frontside);
+				//ImGui::SameLine ();
+				//m_UpdateFrame |= ImGui::Checkbox ("Cull Back", &m_Cull_Backside);
 				
 				m_UpdateFrame |= ImGui::InputInt ("No. of Ray Bounce", &m_NumOfBouncesPerRay);
 				m_UpdateFrame |= ImGui::InputInt ("No. of Samples Per Pixel", &m_NumOfSamplesPerPixel);
@@ -263,6 +271,7 @@ namespace In_One_Weekend
 						m_UpdateFrame |= ImGui::InputFloat3 ("Position", &obj.Position[0]);
 						if (ImGui::InputFloat3 ("Rotation", &obj.Rotation[0])) obj.ResetInvRotationMatrix (), m_UpdateFrame = true;
 						m_UpdateFrame |= ImGui::InputFloat3 ("Scale", &obj.Scale[0]);
+						m_UpdateFrame |= ImGui::DragFloat3 ("Material(refractivity, reflectivity, scatteritivity)", &obj.Material[0], 0.005f, 0.0f, 1.0f);
 						m_UpdateFrame |= ImGui::ColorPicker3 ("Color", &obj.Color[0]);
 						ImGui::Text ("{%f, %f, %f}", obj.Color.x, obj.Color.y, obj.Color.z);
 						ImGui::Separator ();
@@ -296,11 +305,11 @@ namespace In_One_Weekend
 		m_CamPosnUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_CameraPosn");
 		m_ShowNormalsUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_ShowNormal");
 		m_NumOfGeometryUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfObj");
-		m_Cull_FrontsideUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_Cull_Front");
-		m_Cull_BacksideUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_Cull_Back");
+		//m_Cull_FrontsideUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_Cull_Front");
+		//m_Cull_BacksideUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_Cull_Back");
 		m_NumOfBouncesUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfBounce");
 		m_NumOfSamplesUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfSamples");
-		m_DiffusedUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_Diffuse");
+		//m_DiffusedUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_Diffuse");
 		m_TileSizeLocation = glGetUniformLocation (m_ComputeShaderProgID, "u_TileSize");
 		m_TileIndexsLocation = glGetUniformLocation (m_ComputeShaderProgID, "u_TileIndex");
 	}

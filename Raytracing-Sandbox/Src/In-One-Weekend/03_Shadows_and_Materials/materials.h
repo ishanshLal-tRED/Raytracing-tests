@@ -9,16 +9,18 @@ namespace In_One_Weekend
 	class Adding_Materials: public ComputeAndSqrShader_Base
 	{
 	private:
-		struct GeometryBuff{
+		struct GeometryBuff
+		{
 			float position[3] = { 0,0,0 };
 			float inv_rotn_mat3[3*3] = { 0,0,0,0,0,0,0,0,0 };
 			float scale[3] = { 0,0,0 };
 			float color[3] = { 0,0,0 };
 			float material[3] = { 0,0,0 };
+			float scatteritivity[3] = { 0,0,0 };
 		};
 	public:
 		Adding_Materials ()
-			: ComputeAndSqrShader_Base ("InOneWeekend - 03_Materials", "just writing on Screen", Helper::ReadFileAsString("./Src/In-One-Weekend/03_Shadows_and_Materials/computeShaderSrc.glsl", '#').c_str ())
+			: ComputeAndSqrShader_Base ("InOneWeekend - 03_Materials", "just writing on Screen", Helper::ReadFileAsString ("./Src/In-One-Weekend/03_Shadows_and_Materials/computeShaderSrc.glsl", '#').c_str ())
 		{}
 		~Adding_Materials () = default;
 		virtual void OnDetach () override;
@@ -33,7 +35,8 @@ namespace In_One_Weekend
 
 		glm::vec3 FrontFromPitchYaw (float pitch, float yaw);
 
-		enum Geom_type{
+		enum Geom_type
+		{
 			None = 0,
 			CUBOID = 1,
 			ELLIPSOID = 2,
@@ -43,11 +46,12 @@ namespace In_One_Weekend
 		public:
 			Geometry () = default;
 			// Returns whether anything changed in buffer
-			bool FillBuffer (GeometryBuff &buffer) {
+			bool FillBuffer (GeometryBuff &buffer)
+			{
 				bool changed = false;
 				for (int i = 0; i < 3; i++) {
 					changed |= (buffer.position[i] != Position[i]);
-					buffer.position[i]  = Position[i];
+					buffer.position[i] = Position[i];
 				}
 				for (int i = 0; i < 9; i++) {
 					changed |= (buffer.inv_rotn_mat3[i] != _inv_rotation_matrix[i / 3][i % 3]);
@@ -65,6 +69,10 @@ namespace In_One_Weekend
 					changed |= (buffer.material[i] != Material[i]);
 					buffer.material[i] = Material[i];
 				}
+				for (int i = 0; i < 2; i++) {
+					changed |= (buffer.scatteritivity[i] != Scatteritivity[i]);
+					buffer.scatteritivity[i] = Scatteritivity[i];
+				}
 				return changed;
 			}
 			void ResetInvRotationMatrix ()
@@ -80,13 +88,14 @@ namespace In_One_Weekend
 		public:
 			// For ImGui
 			Geom_type Typ = Geom_type::CUBOID;
-			glm::vec3 Position = {0, 0, 0};
-			glm::vec3 Rotation = {0, 0, 0};
-			glm::vec3 Scale = {1, 1, 1};
-			glm::vec3 Color = {1, 0, 0};
-			glm::vec3 Material = {0.2, 0.3, 0.1};
+			glm::vec3 Position = { 0, 0, 0 };
+			glm::vec3 Rotation = { 0, 0, 0 };
+			glm::vec3 Scale = { 1, 1, 1 };
+			glm::vec3 Color = { 1, 0, 0 };
+			glm::vec3 Material = { 0.2, 0.3, 1.5 };
+			glm::vec3 Scatteritivity = { 0, 0, 0 };
 		private:
-			glm::mat3 _inv_rotation_matrix = glm::mat3(1.0f);
+			glm::mat3 _inv_rotation_matrix = glm::mat3 (1.0f);
 		};
 
 		// Copy Geometry data from Object to data buffer and upload as textures to GPU
@@ -99,8 +108,8 @@ namespace In_One_Weekend
 		// bool m_Cull_Frontside = false;
 		// bool m_Cull_Backside = true;
 
-		int16_t m_TileIndexs[2] = {0, 0};
-		uint16_t m_MaxTileIndexs[2] = {0, 0};
+		int16_t m_TileIndexs[2] = { 0, 0 };
+		uint16_t m_MaxTileIndexs[2] = { 0, 0 };
 		int16_t m_TileRingLimit00[2] = { 0, 0 };
 		int16_t m_TileRingLimit01[2] = { 0, 0 };
 		int16_t m_TileRingLimit10[2] = { 0, 0 };

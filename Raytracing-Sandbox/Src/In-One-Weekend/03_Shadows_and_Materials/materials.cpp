@@ -48,18 +48,20 @@ namespace In_One_Weekend
 			m_GeometryGroup[0].Color = glm::vec3(0);
 			m_GeometryGroup[0].Scale = glm::vec3 (2);
 			m_GeometryGroup[0].Position.y = 1;
-			m_GeometryGroup[0].Material = glm::vec3(1, 0, 0);
+			m_GeometryGroup[0].Material = glm::vec3(1, 0, 1.5);
 			m_GeometryGroup[1].Typ = Geom_type::CUBOID;
-			m_GeometryGroup[1].Position.z = -2;
 			m_GeometryGroup[1].Position.y = -1.5f;
-			m_GeometryGroup[1].Scale.x = 10;
-			m_GeometryGroup[1].Scale.z = 10;
+			m_GeometryGroup[1].Scale.x = 12;
+			m_GeometryGroup[1].Scale.z = 11;
 			m_GeometryGroup[1].Color = glm::vec3 (0.02, 0.0125, 0.08);
-			m_GeometryGroup[2].Typ = Geom_type::CUBOID;
+			m_GeometryGroup[2].Typ = Geom_type::ELLIPSOID;
 			m_GeometryGroup[2].Position.x = -1;
-			m_GeometryGroup[2].Position.y = -.75f;
-			m_GeometryGroup[2].Position.z = 1.5f;
+			m_GeometryGroup[2].Position.y = -.5f;
+			m_GeometryGroup[2].Position.z = 1.75f;
 			m_GeometryGroup[2].Scale = glm::vec3(.5f);
+			m_GeometryGroup[2].Material.y = 0.8;
+			m_GeometryGroup[2].Scatteritivity.y = 0.8;
+			m_GeometryGroup[2].Color = glm::vec3 (0);
 		}
 	}
 	void Adding_Materials::OnDetach ()
@@ -271,7 +273,10 @@ namespace In_One_Weekend
 						m_UpdateFrame |= ImGui::InputFloat3 ("Position", &obj.Position[0]);
 						if (ImGui::InputFloat3 ("Rotation", &obj.Rotation[0])) obj.ResetInvRotationMatrix (), m_UpdateFrame = true;
 						m_UpdateFrame |= ImGui::InputFloat3 ("Scale", &obj.Scale[0]);
-						m_UpdateFrame |= ImGui::DragFloat3 ("Material(refractivity, reflectivity, scatteritivity)", &obj.Material[0], 0.005f, 0.0f, 1.0f);
+						m_UpdateFrame |= ImGui::DragFloat ("Material::refractivity", &obj.Material[0], 0.005f, 0.0f, 1.0f);
+						m_UpdateFrame |= ImGui::DragFloat ("Material::reflectivity", &obj.Material[1], 0.005f, 0.0f, 1.00001f - obj.Material[0]);
+						m_UpdateFrame |= ImGui::DragFloat ("Material::refractive_index", &obj.Material[2], 0.005f, 1.0f, 3.0f);
+						m_UpdateFrame |= ImGui::DragFloat2 ("Material::Scattering(refraction, reflection)", &obj.Scatteritivity[0], 0.005f, 0.0f, 1.0f);
 						m_UpdateFrame |= ImGui::ColorPicker3 ("Color", &obj.Color[0]);
 						ImGui::Text ("{%f, %f, %f}", obj.Color.x, obj.Color.y, obj.Color.z);
 						ImGui::Separator ();

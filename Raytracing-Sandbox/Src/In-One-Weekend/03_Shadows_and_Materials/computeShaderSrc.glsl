@@ -32,11 +32,13 @@ struct Plane3D
 	vec4 Eqn;
 };
 struct RayReturnData{
+    vec2 scatteritivity; // refractivity, reflectivity, scatteritivity
+
     vec3 point;
     vec3 normal;
     vec3 reflected;
 
-    vec3 material; // refractivity, reflectivity, scatteritivity
+    vec3 material; // refractivity, reflectivity, refractive_index
     vec3 color;
 };
 
@@ -168,34 +170,33 @@ vec3 fibonacciHemiSpherePtDirn(int sample_index, int max_samples, float scatteri
 
 #define id_tex_size_x textureSize(u_ObjGroupIDTexture, 0).x // const int 
 #define data_tex_size textureSize(u_ObjGroupDataTexture, 0) // const ivec2
-// returns point of hit and associated normal, material, color at that point
 
+// returns point of hit and associated normal, material, color at that point
 RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float color_contribution){
     float min_t_depth = max_t_depth;
     mat3 rot_matrix_of_Intersected_obj, matrix;
     RayReturnData data;
-	int Type = 0;
-	vec3 position, scale, _color, _material, final_tranf_ray_dirn = vec3(0);
+
+	vec3 final_tranf_ray_dirn = vec3(0);
     for(int j = 0; j < u_NumOfObj; j++){
-		Type = int(texture(u_ObjGroupIDTexture, vec2((j+0.1)/id_tex_size_x, 0.1)).r);					   // texture fetch is expensive
-		position  = texture(u_ObjGroupDataTexture, vec2(0.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		int Type = int(texture(u_ObjGroupIDTexture, vec2((j+0.1)/id_tex_size_x, 0.1)).r);					   // texture fetch is expensive
+		vec3 position  = texture(u_ObjGroupDataTexture, vec2(0.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
 		matrix[0] = texture(u_ObjGroupDataTexture, vec2(1.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
 		matrix[1] = texture(u_ObjGroupDataTexture, vec2(2.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
 		matrix[2] = texture(u_ObjGroupDataTexture, vec2(3.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-		scale     = texture(u_ObjGroupDataTexture, vec2(4.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-		_color    = texture(u_ObjGroupDataTexture, vec2(5.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-		_material = texture(u_ObjGroupDataTexture, vec2(6.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		vec3 scale     = texture(u_ObjGroupDataTexture, vec2(4.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
 		
 		vec3 transformed_ray_orig = matrix*(g_origin - position);
 		vec3 transformed_ray_dirn = matrix*g_dirn;
 		Ray transformed_ray = Ray(transformed_ray_orig, normalize(transformed_ray_dirn)); // insure dirn is normalized
 		float t = t_RayXObj(transformed_ray, Type, scale);
+
         // Although these points are transformed, they can still be directly used to campare distance or depth
 		if(min_t_depth > t && t > 0){
 			data.normal = SurfaceNormal(t, transformed_ray, Type, scale);
-			data.color = _color;
-			data.material = _material;
-            //data.objectID = j;
+			data.color    = texture(u_ObjGroupDataTexture, vec2(5.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+			data.material = texture(u_ObjGroupDataTexture, vec2(6.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+			data.scatteritivity = texture(u_ObjGroupDataTexture, vec2(7.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xy;// texture fetch is expensive
 
 			final_tranf_ray_dirn = transformed_ray_dirn;
 
@@ -206,22 +207,29 @@ RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float col
     if(min_t_depth < max_t_depth){
 		// calculate reflection
 		{
-			vec3 _normal = dot(data.normal, final_tranf_ray_dirn) > 0 ? -data.normal : data.normal; 
-			// taking hit point as origin
-			vec3 normal_to_i_n_r = normalize(cross(_normal, final_tranf_ray_dirn));
-			vec3 normal_to_only_n = normalize(cross(normal_to_i_n_r, _normal));
-			// scatteritivity = data.material.z
-			float one_div_sqrt_one_plus_s_sqr = 1.0/sqrt(1.0 + data.material.z*data.material.z) ;
-			vec3 max_reflect = data.material.z*one_div_sqrt_one_plus_s_sqr*_normal + one_div_sqrt_one_plus_s_sqr*normal_to_only_n;
-			vec3 reflected = reflect(final_tranf_ray_dirn, _normal);
-			data.reflected = (dot(reflected, _normal) > dot(max_reflect, _normal)) ? reflected : max_reflect;
+			bool ray_inside_Obj = dot(data.normal, final_tranf_ray_dirn) > 0;
+			vec3 _normal = ray_inside_Obj ? -data.normal : data.normal; // normal towards the side of incident_ray
+			
+			data.reflected = reflect(final_tranf_ray_dirn, _normal); // In TIR no loss of light
+			if(!ray_inside_Obj){
+				// taking hit point as origin
+				vec3 normal_to_i_n_r = normalize(cross(_normal, final_tranf_ray_dirn));
+				vec3 normal_to_only_n = normalize(cross(normal_to_i_n_r, _normal));
+
+				float scatteritivity = ray_inside_Obj ? data.scatteritivity.x : data.scatteritivity.y;
+				
+				float one_div_sqrt_one_plus_s_sqr = 1.0/sqrt(1.0 + scatteritivity*scatteritivity) ;
+				vec3 max_reflect = scatteritivity*one_div_sqrt_one_plus_s_sqr*_normal + one_div_sqrt_one_plus_s_sqr *normal_to_only_n;// *normalize(cross(cross(_normal, final_tranf_ray_dirn), _normal));
+
+				data.reflected = (dot(data.reflected, _normal) > dot(max_reflect, _normal)) ? data.reflected : max_reflect;
+			}
 		}
 		rot_matrix_of_Intersected_obj = inverse(rot_matrix_of_Intersected_obj);
 
         data.point = g_origin + min_t_depth*g_dirn; // removing just a tinybit to ensure point is above the surface instead of being inside the shape
         data.normal = normalize(rot_matrix_of_Intersected_obj*data.normal);
         data.reflected = normalize(rot_matrix_of_Intersected_obj*data.reflected);
-        data.color*=color_contribution;
+        data.color *= color_contribution;
     }else data.point = vec3(0), data.normal = vec3(0);
     return data;
 };
@@ -230,21 +238,24 @@ RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float col
 
 Ray   ray_stack[stack_capacity];
 float ray_contribution_stack[stack_capacity];
+float ray_medium_refractive_index_stack[stack_capacity];
 int   ray_bounce_stack[stack_capacity];
 int   ray_stack_size = 0;
 
-void stack_push(Ray ray, float color_contribution, int bounced){
+void stack_push(Ray ray, float color_contribution, float incident_ray_medium_refractive_index, int bounced){
     if(ray_stack_size < stack_capacity){
         ray_stack[ray_stack_size] = ray;
         ray_contribution_stack[ray_stack_size] = color_contribution;
+        ray_medium_refractive_index_stack[ray_stack_size] = incident_ray_medium_refractive_index;
         ray_bounce_stack[ray_stack_size] = bounced;
         ray_stack_size++;
     }
 }
-Ray stack_pop_out(out float color_contribution, out int bounced){
+Ray stack_pop_out(out float color_contribution, out float refractive_index, out int bounced){
     if(ray_stack_size > 0){
         ray_stack_size--;
         color_contribution = ray_contribution_stack[ray_stack_size];
+		refractive_index = ray_medium_refractive_index_stack[ray_stack_size];
         bounced = ray_bounce_stack[ray_stack_size];
         return ray_stack[ray_stack_size];
     }else return Ray(vec3(0), vec3(0));
@@ -252,14 +263,17 @@ Ray stack_pop_out(out float color_contribution, out int bounced){
 // returns color captured by ray
 vec3 LaunchRays(vec3 ray_origin, vec3 ray_dirn, int sample_index, const int max_samples, const int max_bounces){
     
-    stack_push(Ray(ray_origin, ray_dirn), 1.0, 0);
+    stack_push(Ray(ray_origin, ray_dirn), 1.0, 1.0, 0);
     
-    vec3 sample_color = vec3(0);
+	vec3 sample_color = vec3(0);
+	
+	int skippast_ParentsForRI = 0;// Hack: since this is stack we can assume that parent ray is just above itself (if processing refracted ray, above it is reflected ray which is in same medium as parent ray)
+	// so we have to keep track of skips for parent medium when undergoing refaction when ray is returning from medium to parent medium
+    
+	while(ray_stack_size > 0){
 
-    while(ray_stack_size > 0){
-
-        float contribution;int bounced;
-        Ray curr_ray = stack_pop_out(contribution, bounced);
+        float contribution, refractive_index;int bounced;
+        Ray curr_ray = stack_pop_out(contribution, refractive_index, bounced);
 
         RayReturnData data = LaunchRay(curr_ray.Orig, curr_ray.Dirn, 32000, contribution);
         
@@ -270,39 +284,49 @@ vec3 LaunchRays(vec3 ray_origin, vec3 ray_dirn, int sample_index, const int max_
 
         if(bounced < max_bounces && ray_hit){
             bounced++; // curr_ray can bounce more
-			bool TIR = false; // Total Internal Refraction
-            if(data.material.x > 0.05){ // refractivity
-                float next_ray_contribution = data.material.x*contribution;
-                vec3 refraction_dirn; {
-					float cos_theta = dot(data.normal, curr_ray.Dirn); // note theta can be both -tve(outer hit) and +tve(inner hit, check TIR)
-					float sin_theta = sqrt(1.0 - cos_theta*cos_theta);
-					float refraction_ratio_x_sin_theta = (cos_theta > 0 ? 1.5/1.0 : 1.0/1.5)*sin_theta;
-					if(refraction_ratio_x_sin_theta > 1.0){
-						refraction_dirn = data.reflected;
-						TIR = true;
-					}else{ // No TIR
-						vec3 _normal = cos_theta > 0 ? data.normal : -data.normal;
-						vec3 y_cap = _normal*cos_theta;
 
-						vec3 x_cap = y_cap + curr_ray.Dirn;
-						//                                   same_dirn
-						refraction_dirn = (refraction_ratio_x_sin_theta*_normal) + (sqrt(1.0 - refraction_ratio_x_sin_theta*refraction_ratio_x_sin_theta)*x_cap);
-					}
+			{
+				bool spawnReflected = false, spawnRefracted = false;
+				vec3 refraction_dirn, reflection_dirn;
+				
+				float cos_theta = dot(data.normal, curr_ray.Dirn); // note theta can be both -tve(outer hit) and +tve(inner hit, check TIR)
+
+				float sin_theta = sqrt(1.0 - cos_theta*cos_theta);
+				float target_RI;{ // NOTE: parent material needed if refraction occurs, workaround is to use benifit of stack i.e. which is Last stacked Rays_RI (if again occurs 2nd last and so on.), make use of int skippast_ParentsForRI
+					int ParentRI_Index = ray_stack_size - 1 - skippast_ParentsForRI;
+					target_RI = cos_theta > 0 ? ((ParentRI_Index < 0) ? 1.0f : ray_medium_refractive_index_stack[ParentRI_Index]) : data.material.z;
 				}
-				// uniform distribution on sphere
-				vec3 sample_dirn = fibonacciHemiSpherePtDirn(sample_index, max_samples, data.material.z, refraction_dirn);
-				Ray new_reflctd_ray = Ray(data.point + (TIR ? -0.00003*curr_ray.Dirn : 0.00003*curr_ray.Dirn), sample_dirn); // rectification
-				stack_push(new_reflctd_ray, next_ray_contribution, bounced);// use scatteritivity(data.material.z) and sample_index to construct ray then push ray to stack
-            }
-            if(data.material.y > 0.05 && !TIR){ // reflectivity // when no TIR
-                float next_ray_contribution = data.material.y*contribution;
-                // uniform distribution on sphere
-				vec3 sample_dirn = fibonacciHemiSpherePtDirn(sample_index, max_samples, data.material.z, data.reflected);
-				// Ray new_reflctd_ray = Ray(data.point, sample_dirn);
-				stack_push(Ray(data.point - (0.00003*curr_ray.Dirn), sample_dirn), next_ray_contribution, bounced);
-                // use scatteritivity(data.material.z) and sample_index to construct ray then push ray to stack
-            }
-        }
+				float refraction_ratio_x_sin_theta = (refractive_index/target_RI)*sin_theta;
+
+				float refracted_contribution = data.material.x, reflected_contribution = data.material.y;
+				vec3 _normal = cos_theta > 0 ? data.normal : -data.normal; // away from incident
+				if(cos_theta < 0)
+					reflection_dirn = fibonacciHemiSpherePtDirn(sample_index, max_samples, data.scatteritivity.y, data.reflected), spawnReflected = true;
+				else if (refraction_ratio_x_sin_theta > 1.0f)
+					refraction_dirn = data.reflected, spawnReflected = true, reflected_contribution = 1.0;
+				if(refraction_ratio_x_sin_theta <= 1.0f){ // when No TIR
+				  	
+					vec3 y_cap = _normal*cos_theta;
+					vec3 x_cap = curr_ray.Dirn - y_cap;
+				  	
+					spawnRefracted = true;
+					refraction_dirn = (refraction_ratio_x_sin_theta*_normal) + (sqrt(1.0 - refraction_ratio_x_sin_theta*refraction_ratio_x_sin_theta)*x_cap);
+					refraction_dirn = fibonacciHemiSpherePtDirn(sample_index, max_samples, data.scatteritivity.x, refraction_dirn);
+				}
+				skippast_ParentsForRI = (spawnReflected && spawnRefracted) ? skippast_ParentsForRI - 1 : (spawnReflected ? skippast_ParentsForRI : (spawnRefracted ? skippast_ParentsForRI + 1 : 0)); 
+				
+				vec3 point;
+				if(spawnReflected){
+					point = data.point -0.000015*_normal; // rectify
+					stack_push(Ray(point, reflection_dirn), contribution*reflected_contribution, refractive_index, bounced);
+				}
+				if(spawnRefracted){
+					point = data.point +0.000015*_normal; // rectify
+					stack_push(Ray(point, refraction_dirn), contribution*refracted_contribution, target_RI, bounced);
+				}
+			}
+
+        }else skippast_ParentsForRI = 0; // refracted ray reached end
     }
     return sample_color;
 }

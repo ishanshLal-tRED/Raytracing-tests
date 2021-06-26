@@ -4,7 +4,8 @@ layout (rgba32f, binding = 0) uniform image2D img_output;
 
 uniform ivec2 u_TileSize;
 uniform ivec2 u_TileIndex;
-uniform float u_FocusDist;
+uniform float u_FOV_y; // in radians
+// uniform float u_FocusDist; // will be used for different purpose (depth of field).
 uniform vec3 u_CameraPosn;
 uniform vec3 u_CameraDirn;
 uniform int u_NumOfBounce;
@@ -167,6 +168,12 @@ vec3 fibonacciHemiSpherePtDirn(int sample_index, int max_samples, float scatteri
 	vec3 pt = focus_dirn + (x*x_cap + y*y_cap + z*z_cap); // rotated point & move origin of sphere to tip of reflection
 	return normalize(pt);
 }
+float Schlick_Approx(float cosine, float ref_idx){
+	// Use Schlick's approximation for reflectance.
+    float r0 = (1-ref_idx) / (1+ref_idx);
+    r0 = r0*r0;
+    return r0 + (1-r0)*pow((1 - cosine),5);
+}
 
 #define id_tex_size_x textureSize(u_ObjGroupIDTexture, 0).x // const int 
 #define data_tex_size textureSize(u_ObjGroupDataTexture, 0) // const ivec2
@@ -300,9 +307,14 @@ vec3 LaunchRays(vec3 ray_origin, vec3 ray_dirn, int sample_index, const int max_
 
 				float refracted_contribution = data.material.x, reflected_contribution = data.material.y;
 				vec3 _normal = cos_theta > 0 ? data.normal : -data.normal; // away from incident
-				if(cos_theta < 0)
+				if(cos_theta < 0){
 					reflection_dirn = fibonacciHemiSpherePtDirn(sample_index, max_samples, data.scatteritivity.y, data.reflected), spawnReflected = true;
-				else if (refraction_ratio_x_sin_theta > 1.0f)
+
+					float increase_in_reflected_contribution = refracted_contribution*Schlick_Approx(-cos_theta, (refractive_index/target_RI));
+					refracted_contribution -= increase_in_reflected_contribution;
+					reflected_contribution += increase_in_reflected_contribution;
+
+				}else if (refraction_ratio_x_sin_theta > 1.0f)
 					refraction_dirn = data.reflected, spawnReflected = true, reflected_contribution = 1.0;
 				if(refraction_ratio_x_sin_theta <= 1.0f){ // when No TIR
 				  	
@@ -364,7 +376,10 @@ vec4 out_Pixel (ivec2 pixel_coords, ivec2 img_size)
 				}
 			}else return vec4 (final_color/samples_processed, 1.0);
 
-			ray_dirn = normalize(u_CameraDirn*u_FocusDist + cam_right*(scr_x + (del_scr_x*sample_indexs.x)) + cam_up*(scr_y + (del_scr_y*sample_indexs.y)));
+			// replacement for u_FocusDist
+			float screen_dist = 1.0 / (2.0*tan(u_FOV_y/2.0));
+
+			ray_dirn = normalize(u_CameraDirn*screen_dist + cam_right*(scr_x + (del_scr_x*sample_indexs.x)) + cam_up*(scr_y + (del_scr_y*sample_indexs.y)));
 		}
         
         // can add max_depth and depth fallof (amount of depth to reduce after each bounce)

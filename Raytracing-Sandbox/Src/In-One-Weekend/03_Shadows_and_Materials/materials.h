@@ -20,7 +20,7 @@ namespace In_One_Weekend
 		};
 	public:
 		Adding_Materials ()
-			: ComputeAndSqrShader_Base ("InOneWeekend - 03_Materials", "just writing on Screen", Helper::ReadFileAsString ("./Src/In-One-Weekend/03_Shadows_and_Materials/computeShaderSrc.glsl", '#').c_str ())
+			: ComputeAndSqrShader_Base ("InOneWeekend - 03_Materials", "just writing on Screen", Helper::ReadFileAsString ("./Src/In-One-Weekend/03_Shadows_and_Materials/computeShaderSrcV2.glsl", '#').c_str ())
 		{}
 		~Adding_Materials () = default;
 		virtual void OnDetach () override;
@@ -121,16 +121,14 @@ namespace In_One_Weekend
 		GLuint m_GroupsDataBufferTex = 0;
 		GLuint m_GroupsIDBufferTex = 0;
 
-		GLuint m_FocusDistUniLoc = 0;
+		//GLuint m_FocusDistUniLoc = 0;
+		GLuint m_FOV_Y_UniLoc = 0;
 		GLuint m_CamPosnUniLoc = 0;
 		GLuint m_CamDirnUniLoc = 0;
 		GLuint m_ShowNormalsUniLoc = 0;
 		GLuint m_NumOfGeometryUniLoc = 0;
-		// GLuint m_Cull_FrontsideUniLoc = 0;
-		// GLuint m_Cull_BacksideUniLoc = 0;
 		GLuint m_NumOfBouncesUniLoc = 0;
 		GLuint m_NumOfSamplesUniLoc = 0;
-		// GLuint m_DiffusedUniLoc = 0;
 		GLuint m_TileIndexsLocation = 0; // to track which tile is being processed
 		GLuint m_TileSizeLocation = 0;
 
@@ -138,7 +136,8 @@ namespace In_One_Weekend
 		int m_NumOfBouncesPerRay = 5;
 		int m_NumOfSamplesPerPixel = 36;
 
-		float m_FocusDist = 1.0f;
+		//float m_FocusDist = 1.0f;
+		float m_FOV_Y = 90.0f;
 		glm::vec3 m_CameraPosn = glm::vec3 (3, 2, 10);//(0, 4.2, 10);
 		glm::vec2 m_CameraPitchYaw = glm::vec2 (-13, -120);
 

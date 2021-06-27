@@ -2,8 +2,8 @@
 
 This is my exercise on ray tracing, based on
 
-- Ray Tracing in One Weekend (currently working upon)
-- Ray Tracing the Next Week (upcoming)
+- Ray Tracing in One Weekend (completed)
+- Ray Tracing the Next Week (currently working upon)
 - Ray Tracing the Rest of Your Life (upcoming)
 - Real-Time Rendering (forth Edition) (upcoming)
 
@@ -19,7 +19,7 @@ Along with changes, optimizations, and additions to the content
 For details, please refer to the notes and source code
 The graphics interface uses OpenGL 4.4
 
-Recently working on > **Ray Tracing in One Weekend**
+Recently working on > **Ray Tracing the Next Week**
 
 # 2. Code Framework (will be updated)
 
@@ -28,7 +28,7 @@ Inside ./Raytracing-Sandbox/Src/
 Compute-Shader/
    00_Basic_Compute_Shader
    01_Blur_Using_Compute_Shader
-   02_Evolving_Pics (Partially-finished due to unforseen circumstances)
+   02_Evolving_Pics (Partially-finished due to unforseen circumstances (ristricted and small gpu stack))
 
 In-One-Weekend/
    00_Image
@@ -36,6 +36,8 @@ In-One-Weekend/
    02_Grouping_Objects(Scene)
    03_Adding_Materials
 
+In-Next-Week/
+   
 ```
 
 # 2. How to use
@@ -52,7 +54,7 @@ In-One-Weekend/
 ## 2.1 Environment
 
 - Visual Studio 2017+ (for C++ 17)
-- Windows10
+- Windows-10
 - Git
 - Premake (included)
 

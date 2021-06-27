@@ -126,8 +126,10 @@ namespace In_One_Weekend
 					glUniform2i (m_TileIndexsLocation, m_TileIndexs[0], m_TileIndexs[1]);
 					glUniform2i (m_TileSizeLocation, m_TileSize.x, m_TileSize.y);
 
-					//glUniform1f (m_FocusDistUniLoc, m_FocusDist);
 					glUniform1f (m_FOV_Y_UniLoc, glm::radians(m_FOV_Y));
+					glUniform1f (m_CamFocusDistUniLoc, m_CamFocusDist);
+					glUniform1f (m_CamLensApertureUniLoc, m_CamLensAperture);
+
 					glm::vec3 cam_dirn = FrontFromPitchYaw (m_CameraPitchYaw.x, m_CameraPitchYaw.y);
 					glUniform3f (m_CamDirnUniLoc, cam_dirn.x, cam_dirn.y, cam_dirn.z);
 					glUniform3f (m_CamPosnUniLoc, m_CameraPosn.x, m_CameraPosn.y, m_CameraPosn.z);
@@ -233,8 +235,10 @@ namespace In_One_Weekend
 
 				m_UpdateFrame |= ImGui::DragFloat3 ("Camera Posn", &m_CameraPosn[0], 0.1f);
 				m_UpdateFrame |= ImGui::DragFloat2 ("Camera pitch(y), yaw(x)", &m_CameraPitchYaw[0]);
-				//m_UpdateFrame |= ImGui::DragFloat ("Focus Distance", &m_FocusDist, 0.1f);
+				
 				m_UpdateFrame |= ImGui::DragFloat ("Field Of View (in y Dirn)", &m_FOV_Y);
+				m_UpdateFrame |= ImGui::DragFloat ("Camera Focus Distance", &m_CamFocusDist, 0.1f);
+				m_UpdateFrame |= ImGui::DragFloat ("Camera Aperture Size", &m_CamLensAperture, 0.1f);
 
 				m_UpdateFrame |= ImGui::Checkbox ("Show Normals", &m_ShowNormals);
 
@@ -304,8 +308,10 @@ namespace In_One_Weekend
 	}
 	void Adding_Materials::OnComputeShaderReload ()
 	{
-		//m_FocusDistUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_FocusDist");
 		m_FOV_Y_UniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_FOV_y");
+		m_CamFocusDistUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_CamFocusDist");
+		m_CamLensApertureUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_CamAperture");
+
 		m_CamDirnUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_CameraDirn");
 		m_CamPosnUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_CameraPosn");
 		m_ShowNormalsUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_ShowNormal");

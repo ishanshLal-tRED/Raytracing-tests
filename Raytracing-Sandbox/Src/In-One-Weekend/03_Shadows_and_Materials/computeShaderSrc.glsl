@@ -5,7 +5,10 @@ layout (rgba32f, binding = 0) uniform image2D img_output;
 uniform ivec2 u_TileSize;
 uniform ivec2 u_TileIndex;
 uniform float u_FOV_y; // in radians
-// uniform float u_FocusDist; // will be used for different purpose (depth of field).
+
+uniform float u_CamAperture; // for depth of field.
+uniform float u_CamFocusDist; // for depth of field.
+
 uniform vec3 u_CameraPosn;
 uniform vec3 u_CameraDirn;
 uniform int u_NumOfBounce;
@@ -147,6 +150,17 @@ Plane3D CreatePlane(vec3 norml, vec3 point){
 	return plane;
 }
 
+vec2 sunflower_distr(int pt, int max_pt){
+	if(pt == 0){
+		return vec2(0);
+	}
+	float b = round(2*sqrt(max_pt));
+	const float phi = (sqrt(5.0) + 1.0)/2.0;
+
+	float r = (pt > max_pt - b) ? 1.0 : sqrt((pt - 0.5)/(max_pt - (b+1)/2.0));
+	float theta = 2*PI*pt/(phi*phi);
+	return vec2(r*cos(theta), r*sin(theta));
+}
 vec3 fibonacciHemiSpherePtDirn(int sample_index, int max_samples, float scatteritivity, vec3 focus_dirn){
 	float y = 1 - (sample_index / float(max_samples - 1)); // Y goes 1 to 0 (since sample_index <= max_sample)
 	float radius = sqrt(1 - y*y); // radius at Y
@@ -241,7 +255,7 @@ RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float col
     return data;
 };
 
-#define stack_capacity 5
+#define stack_capacity 4
 
 Ray   ray_stack[stack_capacity];
 float ray_contribution_stack[stack_capacity];
@@ -359,27 +373,37 @@ vec4 out_Pixel (ivec2 pixel_coords, ivec2 img_size)
 	const float del_scr_y = 1.0/float(img_size.y*grid);
 	
 	vec3 final_color = vec3(0);
+	// replacement for u_FocusDist
+	float screen_dist = 1.0 / (2.0*tan(u_FOV_y/2.0));
+	
+	vec3 look_at = u_CameraPosn + u_CameraDirn*u_CamFocusDist;
+	const vec3 cam_right = cross (u_CameraDirn, world_up);
+	const vec3 cam_up = cross (cam_right, u_CameraDirn);
+
 	int focus = 0, x = 0, y = 0;
     for (int samples_processed = 0; samples_processed < u_NumOfSamples; samples_processed++){
-		vec3 ray_orig = u_CameraPosn;
-		vec3 ray_dirn;
-		ivec2 sample_indexs;{
-			vec3 cam_right = cross (u_CameraDirn, world_up);
-			vec3 cam_up = cross (cam_right, u_CameraDirn);
-			if(focus < grid) {
-				if(x == 0 && y == 0){
-					focus++;
-					x = focus, y = focus, sample_indexs = ivec2(focus,focus);;
-				}else{
-					if(x < y) y--, sample_indexs = ivec2(focus, y);
-					else x--, sample_indexs = ivec2(x, focus);
-				}
-			}else return vec4 (final_color/samples_processed, 1.0);
+		vec3 ray_orig;
+		vec3 ray_dirn;{
+			ivec2 sample_indexs;{
+				if(focus < grid) {
+					if(x == 0 && y == 0){
+						focus++;
+						x = focus, y = focus, sample_indexs = ivec2(focus,focus);;
+					}else{
+						if(x < y) y--, sample_indexs = ivec2(focus, y);
+						else x--, sample_indexs = ivec2(x, focus);
+					}
+				}else return vec4 (final_color/samples_processed, 1.0);
+			}
 
-			// replacement for u_FocusDist
-			float screen_dist = 1.0 / (2.0*tan(u_FOV_y/2.0));
+			vec2 rel_posn = sunflower_distr(samples_processed, u_NumOfSamples) *u_CamAperture*0.5;
+			ray_orig = u_CameraPosn + (rel_posn.x*cam_right) + (rel_posn.y*cam_up);
+			
+			vec3 lookat_dirn = normalize(look_at - ray_orig);
+			vec3 _right = cross (lookat_dirn, world_up);
+			vec3 _up = cross (cam_right, lookat_dirn);
 
-			ray_dirn = normalize(u_CameraDirn*screen_dist + cam_right*(scr_x + (del_scr_x*sample_indexs.x)) + cam_up*(scr_y + (del_scr_y*sample_indexs.y)));
+			ray_dirn = normalize(lookat_dirn*screen_dist + _right*(scr_x + (del_scr_x*sample_indexs.x)) + _up*(scr_y + (del_scr_y*sample_indexs.y)));
 		}
         
         // can add max_depth and depth fallof (amount of depth to reduce after each bounce)

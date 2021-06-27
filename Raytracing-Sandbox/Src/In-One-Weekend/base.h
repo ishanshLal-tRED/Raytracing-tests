@@ -8,7 +8,7 @@
 class ComputeAndSqrShader_Base: public GLCore::TestBase
 {
 public:
-	ComputeAndSqrShader_Base (const char* name = "Compute & Sqr Shader Base", const char* discription = "just a base"
+	ComputeAndSqrShader_Base (const char* name, const char* discription = "just a base"
 							 , const char* default_compute_shader_src = s_default_compute_shader
 							 , const char* default_sqr_shader_vert_src = s_default_sqr_shader_vert
 							 , const char* default_sqr_shader_frag_src = s_default_sqr_shader_frag

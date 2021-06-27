@@ -8,6 +8,7 @@
 #include "In-One-Weekend/01_Adding_Sphere/Sphere.h"
 #include "In-One-Weekend/02_Groups/groups.h"
 #include "In-One-Weekend/03_Shadows_and_Materials/materials.h"
+#include "In-Next-Week/00_MotionBlur/motion_blur.h"
 
 class MySandbox
 	: public GLCore::Application
@@ -24,6 +25,7 @@ public:
 		PushLayer<In_One_Weekend::Sphere> ();
 		PushLayer<In_One_Weekend::Groups> ();
 		PushLayer<In_One_Weekend::Adding_Materials> ();
+		PushLayer<In_Next_Week::MotionBlur> ();
 	}
 };
 

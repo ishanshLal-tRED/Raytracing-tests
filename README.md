@@ -37,6 +37,7 @@ In-One-Weekend/
    03_Adding_Materials
 
 In-Next-Week/
+	00_MotionBlur
    
 ```
 

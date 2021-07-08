@@ -1,0 +1,462 @@
+﻿#include "bounding_volume_hierarchy.h"
+#include <GLCoreUtils.h>
+#include <GLCore/Core/KeyCodes.h>
+
+#include "LBVH/lbvh.h"
+
+
+namespace InNextWeek
+{
+	void BoundingVolumeHierarchy::OnAttach ()
+	{
+		GLCore::Utils::EnableGLDebugging ();
+
+		glEnable (GL_DEPTH_TEST);
+		glEnable (GL_BLEND);
+		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		ReloadComputeShader (); ReloadSquareShader ();
+		ReGenQuadVAO ();
+		{
+			int *work_grp_cnt = (int *)((void *)(&Work_Group_Count[0]));
+			glGetIntegeri_v (GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &work_grp_cnt[0]);
+			glGetIntegeri_v (GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &work_grp_cnt[1]);
+			glGetIntegeri_v (GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &work_grp_cnt[2]);
+
+			int *work_grp_size = (int *)((void *)(&Work_Group_Size[0]));
+			glGetIntegeri_v (GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, &work_grp_size[0]);
+			glGetIntegeri_v (GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, &work_grp_size[1]);
+			glGetIntegeri_v (GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, &work_grp_size[2]);
+		}
+		if (!m_ComputeShaderOutputTex) {
+			// dimensions of the image
+			int tex_w = m_OutputTexDimensions.x, tex_h = m_OutputTexDimensions.y;
+
+			m_ComputeShaderOutputTex = Helper::TEXTURE_2D::Upload (nullptr, tex_w, tex_h, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_NEAREST, GL_NEAREST);
+
+			// (GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format)
+			glBindImageTexture (0, m_ComputeShaderOutputTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+		}
+
+		if (m_GroupsIDBuffer.first.capacity () < m_NumOfObjInGroup) {
+			m_GroupsIDBuffer.first.resize (m_NumOfObjInGroup);
+		}
+		if (m_GroupsDataBuffer.first.capacity () < m_NumOfObjInGroup) {
+			m_GroupsDataBuffer.first.resize (m_NumOfObjInGroup);
+		}
+		while (m_GeometryGroup.size () < m_NumOfObjInGroup) {
+			m_GeometryGroup.emplace_back (Geometry ());
+		}
+		{// pre-constructing a scene
+			m_GeometryGroup[0].Typ = Geom_type::ELLIPSOID;
+			m_GeometryGroup[0].Color = glm::vec3 (0);
+			m_GeometryGroup[0].Scale = glm::vec3 (2,1,4);
+			m_GeometryGroup[0].Rotation = glm::vec3 (25,40,45);
+			m_GeometryGroup[0].Checkpoint1 = { 0,0,0 };
+			m_GeometryGroup[0].Checkpoint2 = m_GeometryGroup[0].Checkpoint1;
+			m_GeometryGroup[0].TimePeriod = 1000;
+			m_GeometryGroup[0].Material = glm::vec3 (1, 0, 1.5);
+			m_GeometryGroup[0].UpdatePosition (0.0);
+			m_GeometryGroup[0].ResetInvRotationMatrix ();
+			
+			m_GeometryGroup[1].Typ = Geom_type::CUBOID;
+			m_GeometryGroup[1].Checkpoint1 = m_GeometryGroup[0].BB_max;//+= glm::vec3(-1, -.5f, 1.75f);
+			m_GeometryGroup[1].Checkpoint2 = m_GeometryGroup[1].Checkpoint1;//+= glm::vec3(-1, -.5f, 1.75f);
+			m_GeometryGroup[1].TimePeriod = 1000;
+			m_GeometryGroup[1].Scale = glm::vec3 (.25f, .25f, .25f);
+			m_GeometryGroup[1].Material.y = 0.8;
+			m_GeometryGroup[1].Scatteritivity.y = 0.8;
+			m_GeometryGroup[1].Color = glm::vec3 (0);
+			m_GeometryGroup[1].UpdatePosition (0.0);
+			m_GeometryGroup[1].ResetInvRotationMatrix ();
+
+			m_GeometryGroup[2].Typ = Geom_type::CUBOID;
+			m_GeometryGroup[2].Checkpoint1 = glm::vec3 (0, -4, 0);
+			m_GeometryGroup[2].Checkpoint2 = glm::vec3 (0, -4, 0);
+			m_GeometryGroup[2].Scale.x = 12;
+			m_GeometryGroup[2].Scale.z = 11;
+			m_GeometryGroup[2].Color = glm::vec3 (0.02, 0.0125, 0.08);
+			m_GeometryGroup[2].UpdatePosition (0.0);
+			m_GeometryGroup[2].ResetInvRotationMatrix ();
+		}
+	}
+	void BoundingVolumeHierarchy::OnDetach ()
+	{
+		DeleteQuadVAO ();
+
+		glDeleteTextures (1, &m_ComputeShaderOutputTex);
+		m_ComputeShaderOutputTex = 0;
+
+		DeleteComputeShader ();
+		DeleteSquareShader ();
+	}
+	void BoundingVolumeHierarchy::OnUpdate (GLCore::Timestep ts)
+	{
+		m_DeltaTimeBetweenBufferCopy += ts;
+
+		glClearColor (0.1f, 0.1f, 0.1f, 1.0f);
+		glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		if (m_UpdateFrame) { // launch compute shaders!
+			CopyObjBuffer (m_DeltaTimeBetweenBufferCopy);
+			m_DeltaTimeBetweenBufferCopy = 0;
+			m_UpdateFrame = false;
+			m_MaxTileIndexs[0] = (m_OutputTexDimensions.x/m_TileSize.x), m_MaxTileIndexs[1] = (m_OutputTexDimensions.y/m_TileSize.y);
+			m_TileIndexs[0] = (m_MaxTileIndexs[0]-0.1f)/2, m_TileIndexs[1] = (m_MaxTileIndexs[1]-0.1f)/2;
+
+			m_TileRingLimit00[0] = m_TileIndexs[0];
+			m_TileRingLimit00[1] = m_TileIndexs[1];
+			m_TileRingLimit01[0] = m_TileIndexs[0];
+			m_TileRingLimit01[1] = m_TileIndexs[1] + 1;
+			m_TileRingLimit10[0] = m_TileIndexs[0] + 1;
+			m_TileRingLimit10[1] = m_TileIndexs[1] - 1; // for next ring
+			m_TileRingLimit11[0] = m_TileIndexs[0] + 1;
+			m_TileRingLimit11[1] = m_TileIndexs[1] + 1;
+			m_TileIndexLastStep[0] = 0;
+			m_TileIndexLastStep[1] = 0;
+		}
+		for (uint8_t i = 0; i < m_NumberOfTilesAtATime; i++) {
+		DRAW_TILE:
+			if (MIN (m_TileIndexs[0], m_TileIndexs[1]) < MAX (m_MaxTileIndexs[0], m_MaxTileIndexs[1]) + 1) {
+				if (m_TileIndexs[1] == m_TileRingLimit00[1] && m_TileIndexs[0] == m_TileRingLimit00[0]) {
+					m_TileRingLimit00[0]--, m_TileRingLimit00[1]--;
+					m_TileIndexLastStep[0] = 0, m_TileIndexLastStep[1] = 1;
+				}
+				if (m_TileIndexs[1] == m_TileRingLimit01[1] && m_TileIndexs[0] == m_TileRingLimit01[0]) {
+					m_TileRingLimit01[0]--, m_TileRingLimit01[1]++;
+					m_TileIndexLastStep[0] = 1, m_TileIndexLastStep[1] = 0;
+				}
+				if (m_TileIndexs[1] == m_TileRingLimit11[1] && m_TileIndexs[0] == m_TileRingLimit11[0]) {
+					m_TileRingLimit11[0]++, m_TileRingLimit11[1]++;
+					m_TileIndexLastStep[0] = 0, m_TileIndexLastStep[1] = -1;
+				}
+				if (m_TileIndexs[1] == m_TileRingLimit10[1] && m_TileIndexs[0] == m_TileRingLimit10[0]) {
+					m_TileRingLimit10[0]++, m_TileRingLimit10[1]--;
+					m_TileIndexLastStep[0] = -1, m_TileIndexLastStep[1] = 0;
+				}
+				bool drawableTile = m_TileIndexs[1] > -1 && m_TileIndexs[1] < m_MaxTileIndexs[1]+1 && m_TileIndexs[0] > -1 && m_TileIndexs[0] < m_MaxTileIndexs[0]+1;
+				if (drawableTile) {
+					glUseProgram (m_ComputeShaderProgID);
+
+					glUniform1i (m_ShowNormalsUniLoc, int (m_ShowNormals));
+					glUniform1i (m_NumOfGeometryUniLoc, m_NumOfObjInGroup);
+					glUniform1i (m_NumOfBouncesUniLoc, m_NumOfBouncesPerRay);
+					glUniform1i (m_NumOfSamplesUniLoc, m_NumOfSamplesPerPixel);
+
+					glUniform2i (m_TileIndexsLocation, m_TileIndexs[0], m_TileIndexs[1]);
+					glUniform2i (m_TileSizeLocation, m_TileSize.x, m_TileSize.y);
+
+					glUniform1f (m_FOV_Y_UniLoc, glm::radians (m_FOV_Y));
+					glUniform1f (m_CamFocusDistUniLoc, m_CamFocusDist);
+					glUniform1f (m_CamLensApertureUniLoc, m_CamLensAperture);
+
+					glm::vec3 cam_dirn = FrontFromPitchYaw (m_CameraPitchYaw.x, m_CameraPitchYaw.y);
+					glUniform3f (m_CamDirnUniLoc, cam_dirn.x, cam_dirn.y, cam_dirn.z);
+					glUniform3f (m_CamPosnUniLoc, m_CameraPosn.x, m_CameraPosn.y, m_CameraPosn.z);
+
+					glActiveTexture (GL_TEXTURE0);
+					glBindTexture (GL_TEXTURE_2D, m_GroupsIDBufferTex);
+					glActiveTexture (GL_TEXTURE1);
+					glBindTexture (GL_TEXTURE_2D, m_GroupsDataBufferTex);
+					glActiveTexture (GL_TEXTURE2);
+					glBindTexture (GL_TEXTURE_2D, m_TreeHeirarchyBufferTex);
+
+					glDispatchCompute ((m_TileIndexs[0] >= m_MaxTileIndexs[0] ? (m_OutputTexDimensions.x%m_TileSize.x) : m_TileSize.x)
+									   , (m_TileIndexs[1] >= m_MaxTileIndexs[1] ? (m_OutputTexDimensions.y%m_TileSize.y) : m_TileSize.y), 1);
+
+					// make sure writing to image has finished before read
+					glMemoryBarrier (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+				}
+				m_TileIndexs[0] += m_TileIndexLastStep[0], m_TileIndexs[1] += m_TileIndexLastStep[1];
+				if (!drawableTile)
+					goto DRAW_TILE;
+			} else m_UpdateFrame = true;
+		}
+
+		{ // normal drawing pass
+			glClear (GL_COLOR_BUFFER_BIT);
+			glUseProgram (m_SquareShaderProgID);
+			glBindVertexArray (m_QuadVA);
+			glActiveTexture (GL_TEXTURE0);
+			glBindTexture (GL_TEXTURE_2D, m_ComputeShaderOutputTex);
+			glDrawElements (GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+		}
+	}
+	void BoundingVolumeHierarchy::OnEvent (GLCore::Event &event)
+	{
+		GLCore::EventDispatcher dispatcher (event);
+		dispatcher.Dispatch<GLCore::LayerViewportResizeEvent> (
+			[&](GLCore::LayerViewportResizeEvent &e) {
+
+				m_OutputTexDimensions.x = (float (e.GetWidth ())/e.GetHeight ())*m_OutputTexDimensions.y;
+
+				glDeleteTextures (1, &m_ComputeShaderOutputTex);
+				m_ComputeShaderOutputTex = Helper::TEXTURE_2D::Upload (nullptr, m_OutputTexDimensions.x, m_OutputTexDimensions.y, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_NEAREST, GL_NEAREST);
+
+				// (GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format)
+				glBindImageTexture (0, m_ComputeShaderOutputTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+				m_UpdateFrame = true;
+				return false;
+			});
+		dispatcher.Dispatch<GLCore::KeyPressedEvent> (
+			[&](GLCore::KeyPressedEvent &e) {
+				float &pitch = m_CameraPitchYaw.x;
+				float &yaw = m_CameraPitchYaw.y;
+				glm::vec3 front = FrontFromPitchYaw (pitch, yaw), right, up;
+
+				static constexpr glm::vec3 worldUp = { 0.0f, 1.0f, 0.0f };
+				right = glm::normalize (glm::cross (front, worldUp));
+				// up = glm::normalize (glm::cross (right, front));
+
+				switch (e.GetKeyCode ()) {
+					case GLCore::Key::Up:
+						pitch = MIN (pitch + 0.3f, 89.0f); m_UpdateFrame = true; break;
+					case GLCore::Key::Down:
+						pitch = MAX (pitch - 0.3f, -89.0f); m_UpdateFrame = true; break;
+					case GLCore::Key::Left:
+						yaw = MOD (yaw - 0.3f, 360.0f); m_UpdateFrame = true; break;
+					case GLCore::Key::Right:
+						yaw = MOD (yaw + 0.3f, 360.0f); m_UpdateFrame = true; break;
+					case GLCore::Key::W:
+						m_CameraPosn += front*0.1f; m_UpdateFrame = true; break;
+					case GLCore::Key::S:
+						m_CameraPosn -= front*0.1f; m_UpdateFrame = true; break;
+					case GLCore::Key::A:
+						m_CameraPosn -= right*0.1f; m_UpdateFrame = true; break;
+					case GLCore::Key::D:
+						m_CameraPosn += right*0.1f; m_UpdateFrame = true; break;
+				}
+
+				return false;
+			});
+	}
+	static glm::vec3 Test_Dirn = glm::vec3 (-1, 0, 0);
+	void BoundingVolumeHierarchy::OnImGuiRender ()
+	{
+		using namespace GLCore;
+		ImGui::Begin (ImGuiLayer::UniqueName ("Just a window"));
+		if (ImGui::BeginTabBar (ImGuiLayer::UniqueName ("Shaders Content"))) {
+			if (ImGui::BeginTabItem (ImGuiLayer::UniqueName ("Settings"))) {
+
+				ImGui::Text ("Max Compute Work Group\n Count: %d, %d, %d\n Size:  %d, %d, %d", Work_Group_Count[0], Work_Group_Count[1], Work_Group_Count[2], Work_Group_Size[0], Work_Group_Size[1], Work_Group_Size[2]);
+				ImGui::InputInt ("Number of tiles to draw at a time, increase it for stronger GPUs", &m_NumberOfTilesAtATime);
+				ImGui::InputInt2 ("Size of tiles, increase it for stronger GPUs", (int *)((void *)&m_TileSize));
+				if (ImGui::InputInt ("Resolution Height", &m_OutputResolutionHeight)) {
+					int tmp = MIN (MAX (m_OutputResolutionHeight, 100), 1000);
+					if (m_OutputTexDimensions.y != tmp) {
+						m_OutputTexDimensions.x *= (float (tmp)/m_OutputTexDimensions.y);
+						m_OutputTexDimensions.y = tmp;
+						glDeleteTextures (1, &m_ComputeShaderOutputTex);
+						m_ComputeShaderOutputTex = Helper::TEXTURE_2D::Upload (nullptr, m_OutputTexDimensions.x, m_OutputTexDimensions.y, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_NEAREST, GL_NEAREST);
+						glBindImageTexture (0, m_ComputeShaderOutputTex, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
+
+						m_UpdateFrame = true;
+					}
+				}
+
+				m_UpdateFrame |= ImGui::DragFloat3 ("Camera Posn", &m_CameraPosn[0], 0.1f);
+				m_UpdateFrame |= ImGui::DragFloat2 ("Camera pitch(y), yaw(x)", &m_CameraPitchYaw[0]);
+
+				m_UpdateFrame |= ImGui::DragFloat ("Field Of View (in y Dirn)", &m_FOV_Y);
+				m_UpdateFrame |= ImGui::DragFloat ("Camera Focus Distance", &m_CamFocusDist, 0.1f);
+				m_UpdateFrame |= ImGui::DragFloat ("Camera Aperture Size", &m_CamLensAperture, 0.1f);
+
+				m_UpdateFrame |= ImGui::Checkbox ("Show Normals", &m_ShowNormals);
+
+				m_UpdateFrame |= ImGui::InputInt ("No. of Ray Bounce", &m_NumOfBouncesPerRay);
+				m_UpdateFrame |= ImGui::InputInt ("No. of Samples Per Pixel", &m_NumOfSamplesPerPixel);
+
+				ImGui::Text ("use W, A, S, D to move (while viewport focused)\nand UP, LEFT, DOWN, RIGHT to rotate camera\n");
+
+				if (ImGui::InputInt ("Number Of Object Scene", (int *)((void *)&m_NumOfObjInGroup))) {
+					if (m_GroupsIDBuffer.first.capacity () < m_NumOfObjInGroup) {
+						m_GroupsIDBuffer.first.resize (m_NumOfObjInGroup);
+						m_UpdateFrame = true;
+					}
+					if (m_GroupsDataBuffer.first.capacity () < m_NumOfObjInGroup) {
+						m_GroupsDataBuffer.first.resize (m_NumOfObjInGroup);
+						m_UpdateFrame = true;
+					}
+					while (m_GeometryGroup.size () < m_NumOfObjInGroup) {
+						m_GeometryGroup.emplace_back (Geometry ());
+						m_UpdateFrame = true;
+					}
+				}
+				if (ImGui::CollapsingHeader ("Objects In Scene")) {
+					ImGui::Indent ();
+					for (uint16_t i = 0; i < m_NumOfObjInGroup; i++) {
+						ImGui::PushID (i);
+						Geometry &obj = m_GeometryGroup[i];
+						m_UpdateFrame |= ImGui::Combo ("Geometry Type", (int *)&obj.Typ, "None\0Cuboid\0Ellipsoid\0");
+						m_UpdateFrame |= ImGui::InputFloat3 ("Checkpoint 1", &obj.Checkpoint1[0]);
+						m_UpdateFrame |= ImGui::InputFloat3 ("Checkpoint 2", &obj.Checkpoint2[0]);
+						ImGui::Text ("{%f, %f, %f}", obj.curr_position.x, obj.curr_position.y, obj.curr_position.z);
+
+						m_UpdateFrame |= ImGui::InputFloat ("Time-period", &obj.TimePeriod);
+						if (ImGui::InputFloat3 ("Rotation", &obj.Rotation[0])) obj.ResetInvRotationMatrix (), m_UpdateFrame = true;
+						m_UpdateFrame |= ImGui::InputFloat3 ("Scale", &obj.Scale[0]);
+						m_UpdateFrame |= ImGui::DragFloat ("Material::refractivity", &obj.Material[0], 0.005f, 0.0f, 1.0f);
+						m_UpdateFrame |= ImGui::DragFloat ("Material::reflectivity", &obj.Material[1], 0.005f, 0.0f, 1.00001f - obj.Material[0]);
+						m_UpdateFrame |= ImGui::DragFloat ("Material::refractive_index", &obj.Material[2], 0.005f, 1.0f, 3.0f);
+						m_UpdateFrame |= ImGui::DragFloat2 ("Material::Scattering(refraction, reflection)", &obj.Scatteritivity[0], 0.005f, 0.0f, 1.0f);
+						m_UpdateFrame |= ImGui::ColorPicker3 ("Color", &obj.Color[0]);
+						ImGui::Text ("{%f, %f, %f}", obj.Color.x, obj.Color.y, obj.Color.z);
+						ImGui::Separator ();
+						ImGui::PopID ();
+					}
+					ImGui::Unindent ();
+				}
+
+				//if (ImGui::InputFloat3 ("Testing Tight BB", &Test_Dirn[0])) {
+				//	glm::vec3 posn = Geometry::TestThing (m_GeometryGroup[0], glm::normalize(Test_Dirn));
+				//	m_GeometryGroup[1].Checkpoint1 = posn; // += glm::vec3(-1, -.5f, 1.75f);
+				//	m_GeometryGroup[1].Checkpoint2 = posn; // += glm::vec3(-1, -.5f, 1.75f);
+				//}
+
+				ImGui::EndTabItem ();
+			}
+			if (ImGui::BeginTabItem (ImGuiLayer::UniqueName ("Compute Shader Source"))) {
+
+				OnImGuiComputeShaderSource ();
+
+				ImGui::EndTabItem ();
+			}
+			if (ImGui::BeginTabItem (ImGuiLayer::UniqueName ("Square Shader Source"))) {
+
+				OnImGuiSqureShaderSource ();
+
+				ImGui::EndTabItem ();
+			}
+			ImGui::EndTabBar ();
+		}
+		ImGui::End ();
+	}
+	void BoundingVolumeHierarchy::OnComputeShaderReload ()
+	{
+		m_FOV_Y_UniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_FOV_y");
+		m_CamFocusDistUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_CamFocusDist");
+		m_CamLensApertureUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_CamAperture");
+
+		m_CamDirnUniLoc       = glGetUniformLocation (m_ComputeShaderProgID, "u_CameraDirn"  );
+		m_CamPosnUniLoc       = glGetUniformLocation (m_ComputeShaderProgID, "u_CameraPosn"  );
+		m_ShowNormalsUniLoc   = glGetUniformLocation (m_ComputeShaderProgID, "u_ShowNormal"  );
+		m_NumOfGeometryUniLoc = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfObj"    );
+		m_NumOfBouncesUniLoc  = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfBounce" );
+		m_NumOfSamplesUniLoc  = glGetUniformLocation (m_ComputeShaderProgID, "u_NumOfSamples");
+		m_TileSizeLocation    = glGetUniformLocation (m_ComputeShaderProgID, "u_TileSize"    );
+		m_TileIndexsLocation  = glGetUniformLocation (m_ComputeShaderProgID, "u_TileIndex"   );
+	}
+	void BoundingVolumeHierarchy::OnSquareShaderReload ()
+	{}
+
+	glm::vec3 BoundingVolumeHierarchy::FrontFromPitchYaw (float pitch, float yaw)
+	{
+		glm::vec3 front;
+		front.x = cos (glm::radians (yaw)) * cos (glm::radians (pitch));
+		front.y = sin (glm::radians (pitch));
+		front.z = sin (glm::radians (yaw)) * cos (glm::radians (pitch));
+		return glm::normalize (front);
+	}
+	void BoundingVolumeHierarchy::CopyObjBuffer (float deltatime) // this time is between 2 buffer copy
+	{
+		//bool resize_ID_tex = false, resize_data_tex = false;
+		while (m_GroupsIDBuffer.first.size () < m_GeometryGroup.size ())
+			m_GroupsIDBuffer.first.push_back (0.0f), m_GroupsIDBuffer.second = true;// , resize_ID_tex = true;
+		while (m_GroupsDataBuffer.first.size () < m_GeometryGroup.size ())
+			m_GroupsDataBuffer.first.emplace_back (GeometryBuff ()), m_GroupsDataBuffer.second = true;// , resize_data_tex = true;
+		for (uint16_t i = 0; i < m_GeometryGroup.size (); i++) {
+			m_GeometryGroup[i].UpdatePosition (deltatime);
+			m_GroupsDataBuffer.second |= m_GeometryGroup[i].FillBuffer (m_GroupsDataBuffer.first[i]);
+		}
+		for (uint16_t i = 0; i < m_GeometryGroup.size (); i++) {
+			if (m_GroupsIDBuffer.first[i] != int (m_GeometryGroup[i].Typ))
+				m_GroupsIDBuffer.first[i] = float (m_GeometryGroup[i].Typ), m_GroupsIDBuffer.second = true;
+		}
+
+		if (m_GroupsDataBuffer.second) {
+			//if (resize_data_tex || m_GroupsDataBuffer.second) {
+			glDeleteTextures (1, &m_GroupsDataBufferTex);
+			m_GroupsDataBufferTex = 0;
+			//}
+			if (m_GroupsDataBufferTex == 0) {
+				m_GroupsDataBufferTex = Helper::TEXTURE_2D::Upload (m_GroupsDataBuffer.first.data (), sizeof (GeometryBuff)/sizeof (float[3]), m_GroupsDataBuffer.first.size (), GL_RGB32F, GL_RGB, GL_FLOAT);
+			}
+			m_GroupsDataBuffer.second = false;
+			
+
+			auto [LBVHTree, TreeSize] = LBVH::ConstructLBVH_Buff (m_GeometryGroup);
+			if(m_TreeHeirarchyBufferTex)
+				glDeleteTextures (1, &m_TreeHeirarchyBufferTex);
+			m_TreeHeirarchyBufferTex = Helper::TEXTURE_2D::Upload (LBVHTree, 3, TreeSize, GL_RGBA32F, GL_RGBA, GL_FLOAT);
+			delete[] LBVHTree;
+		}
+		if (m_GroupsIDBuffer.second) {
+			//if (resize_ID_tex || m_GroupsIDBuffer.second) { // currently i'm recreating texture as a change occurs in data it instead of changing data texture
+			glDeleteTextures (1, &m_GroupsIDBufferTex);
+			m_GroupsIDBufferTex = 0;
+			//}
+			if (m_GroupsIDBufferTex == 0) {
+				m_GroupsIDBufferTex = Helper::TEXTURE_2D::Upload (m_GroupsIDBuffer.first.data (), m_GroupsIDBuffer.first.size (), 1, GL_R32F, GL_RED, GL_FLOAT);
+			}
+			m_GroupsIDBuffer.second = false;
+		}
+
+
+	}
+	void BoundingVolumeHierarchy::Geometry::UpdatePosition (float ts)
+	{
+		time += ts;
+
+		last_Position = curr_position;
+		glm::vec3 x0 = Checkpoint1 + Checkpoint2;
+		x0 *= 0.5f;
+		glm::vec3 a = x0 - Checkpoint1;
+		float theta = glm::radians (360.0f/TimePeriod)*time;
+		float cos_theta = cosf(theta);
+		curr_position = x0 + a*cos_theta;
+	}
+	void BoundingVolumeHierarchy::Geometry::UpdateBB ()
+	{
+		glm::mat3 matrix = glm::transpose (_inv_rotation_matrix);
+		switch (Typ) {
+			case Geom_type::CUBOID:
+				{
+					float _Z[2] = { -Scale.z*0.5f, Scale.z*0.5f };
+					float _Y[2] = { -Scale.y*0.5f, Scale.y*0.5f };
+					float _X[2] = { -Scale.x*0.5f, Scale.x*0.5f };
+
+					BB_min = glm::vec3 (0), BB_max = glm::vec3 (0);
+					uint8_t i = 0, j = 0, k = 0;
+					for (float z : _Z) {
+						for (float y : _Y) {
+							for (float x : _X) {
+
+								glm::vec3 tranf_corner = matrix*glm::vec3 (x, y, z);
+								for (uint8_t i = 0; i < 3; i++) {
+									if (BB_max[i] < tranf_corner[i]) BB_max[i] = tranf_corner[i];
+									if (BB_min[i] > tranf_corner[i]) BB_min[i] = tranf_corner[i];
+								}
+
+							i++; } i = 0;
+						j++; } j = 0;
+					k++; } k = 0;
+				}break;
+			case Geom_type::ELLIPSOID:
+				{
+					matrix = matrix*glm::mat3 (
+						Scale.x, 0, 0,
+						0, Scale.y, 0,
+						0, 0, Scale.z
+					);
+					float x = sqrt (matrix[0][0]*matrix[0][0] + matrix[1][0]*matrix[1][0] + matrix[2][0]*matrix[2][0]);
+					float y = sqrt (matrix[0][1]*matrix[0][1] + matrix[1][1]*matrix[1][1] + matrix[2][1]*matrix[2][1]);
+					float z = sqrt (matrix[0][2]*matrix[0][2] + matrix[1][2]*matrix[1][2] + matrix[2][2]*matrix[2][2]);
+
+					BB_min = glm::vec3 (-x, -y, -z);
+					BB_max = glm::vec3 (x, y, z);
+				}break;
+		}
+		BB_min += curr_position;
+		BB_max += curr_position;
+	}
+};

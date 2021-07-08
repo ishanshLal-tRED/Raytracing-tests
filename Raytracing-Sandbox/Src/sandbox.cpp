@@ -9,6 +9,7 @@
 #include "In-One-Weekend/02_Groups/groups.h"
 #include "In-One-Weekend/03_Shadows_and_Materials/materials.h"
 #include "In-Next-Week/00_MotionBlur/motion_blur.h"
+#include "In-Next-Week/01_BoundingVolumeHierarchy/bounding_volume_hierarchy.h"
 
 class MySandbox
 	: public GLCore::Application
@@ -17,15 +18,16 @@ public:
 	MySandbox ()
 		: GLCore::Application("Sandbox")
 	{
-		PushLayer<ExampleLayer> ();
-		PushLayer<BasicComputeShader_Test> ();
-		PushLayer<BlurWithComputeShader_Test> ();
-		PushLayer<just_a_test> ();
-		PushLayer<In_One_Weekend::Image> ();
-		PushLayer<In_One_Weekend::Sphere> ();
-		PushLayer<In_One_Weekend::Groups> ();
+		// PushLayer<ExampleLayer> ();
+		// PushLayer<BasicComputeShader_Test> ();
+		// PushLayer<BlurWithComputeShader_Test> ();
+		// PushLayer<just_a_test> ();
+		// PushLayer<In_One_Weekend::Image> ();
+		// PushLayer<In_One_Weekend::Sphere> ();
+		// PushLayer<In_One_Weekend::Groups> ();
 		PushLayer<In_One_Weekend::Adding_Materials> ();
 		PushLayer<In_Next_Week::MotionBlur> ();
+		PushLayer<In_Next_Week::BoundingVolumeHierarchy> ();
 	}
 };
 

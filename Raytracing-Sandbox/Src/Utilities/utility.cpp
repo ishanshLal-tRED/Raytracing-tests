@@ -253,24 +253,24 @@ namespace Helper
 			float c = cos (radians);
 			float s = sin (radians);
 			return (glm::mat3 (1.0f, 0.0f, 0.0f,
-							   0.0f, c, -s,
-							   0.0f, s, c));
+							   0.0f, c,   -s,
+							   0.0f, s,    c));
 		}
 
 		glm::mat3 MakeRotationY (float radians)
 		{
 			float c = cos (radians);
 			float s = sin (radians);
-			return (glm::mat3 (c, 0.0f, s,
+			return (glm::mat3 (c,    0.0f, s,
 							   0.0f, 1.0f, 0.0f,
-							   -s, 0.0f, c));
+							  -s,    0.0f, c));
 		}
 		glm::mat3 MakeRotationZ (float radians)
 		{
 			float c = cos (radians);
 			float s = sin (radians);
-			return (glm::mat3 (c, -s, 0.0f,
-							   s, c, 0.0f,
+			return (glm::mat3 (c,   -s,    0.0f,
+							   s,    c,    0.0f,
 							   0.0f, 0.0f, 1.0f));
 		}
 	}

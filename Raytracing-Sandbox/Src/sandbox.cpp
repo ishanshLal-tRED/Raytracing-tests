@@ -11,6 +11,7 @@
 #include "In-Next-Week/00_MotionBlur/motion_blur.h"
 #include "In-Next-Week/01_BoundingVolumeHierarchy/bounding_volume_hierarchy.h"
 #include "Test/BVH.h"
+#include "Test_Buffer_supply_to_shader/test.h"
 
 //static size_t memory_in_use = 0;
 //static size_t peak_memory_use = 0;
@@ -45,6 +46,7 @@ public:
 		PushLayer<In_Next_Week::MotionBlur> ();
 		// PushLayer<In_Next_Week::BoundingVolumeHierarchy> ();
 		PushLayer<In_Next_Week::BVH> ();
+		PushLayer<BuffSupply::Test> ();
 	}
 };
 

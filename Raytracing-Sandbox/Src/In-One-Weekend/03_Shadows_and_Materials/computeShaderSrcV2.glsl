@@ -1,4 +1,4 @@
-﻿#version 440 core
+#version 440 core
 layout (local_size_x = 1, local_size_y = 1) in;
 layout (rgba32f, binding = 0) uniform image2D img_output;
 
@@ -193,7 +193,7 @@ float Schlick_Approx(float cosine, float ref_idx){
 #define data_tex_size textureSize(u_ObjGroupDataTexture, 0) // const ivec2
 
 // returns point of hit and associated normal, material, color at that point
-RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float color_contribution, int sample_index, int max_samples){
+RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float color_contribution){
     float min_t_depth = max_t_depth;
     mat3 rot_matrix_of_Intersected_obj, matrix;
     RayReturnData data;
@@ -201,14 +201,13 @@ RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float col
 	vec3 final_tranf_ray_dirn = vec3(0);
     for(int j = 0; j < u_NumOfObj; j++){
 		int Type = int(texture(u_ObjGroupIDTexture, vec2((j+0.1)/id_tex_size_x, 0.1)).r);					   // texture fetch is expensive
-		vec3 position      = texture(u_ObjGroupDataTexture, vec2(0.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-		//vec3 last_position = texture(u_ObjGroupDataTexture, vec2(1.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-		matrix[0]          = texture(u_ObjGroupDataTexture, vec2(2.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-		matrix[1]          = texture(u_ObjGroupDataTexture, vec2(3.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-		matrix[2]          = texture(u_ObjGroupDataTexture, vec2(4.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-		vec3 scale         = texture(u_ObjGroupDataTexture, vec2(5.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		vec3 position  = texture(u_ObjGroupDataTexture, vec2(0.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		matrix[0] = texture(u_ObjGroupDataTexture, vec2(1.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		matrix[1] = texture(u_ObjGroupDataTexture, vec2(2.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		matrix[2] = texture(u_ObjGroupDataTexture, vec2(3.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+		vec3 scale     = texture(u_ObjGroupDataTexture, vec2(4.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
 		
-		vec3 transformed_ray_orig = matrix*(g_origin - position);//(last_position + (position - last_position)*(float(sample_index)/max_samples)) );
+		vec3 transformed_ray_orig = matrix*(g_origin - position);
 		vec3 transformed_ray_dirn = matrix*g_dirn;
 		Ray transformed_ray = Ray(transformed_ray_orig, normalize(transformed_ray_dirn)); // insure dirn is normalized
 		float t = t_RayXObj(transformed_ray, Type, scale);
@@ -216,8 +215,8 @@ RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float col
         // Although these points are transformed, they can still be directly used to campare distance or depth
 		if(min_t_depth > t && t > 0){
 			data.normal = SurfaceNormal(t, transformed_ray, Type, scale);
-			data.color    = texture(u_ObjGroupDataTexture, vec2(6.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
-			data.material = texture(u_ObjGroupDataTexture, vec2(7.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+			data.color    = texture(u_ObjGroupDataTexture, vec2(5.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
+			data.material = texture(u_ObjGroupDataTexture, vec2(6.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xyz;// texture fetch is expensive
 			data.scatteritivity = texture(u_ObjGroupDataTexture, vec2(7.1/data_tex_size.x, (j+0.1)/data_tex_size.y)).xy;// texture fetch is expensive
 
 			final_tranf_ray_dirn = transformed_ray_dirn;
@@ -297,7 +296,7 @@ vec3 LaunchRays(vec3 ray_origin, vec3 ray_dirn, int sample_index, const int max_
         float contribution, refractive_index;int bounced;
         Ray curr_ray = stack_pop_out(contribution, refractive_index, bounced);
 
-        RayReturnData data = LaunchRay(curr_ray.Orig, curr_ray.Dirn, 32000, contribution, sample_index, max_samples);
+        RayReturnData data = LaunchRay(curr_ray.Orig, curr_ray.Dirn, 32000, contribution);
         
         bool ray_hit = dot(data.normal, data.normal) > 0.9;// or less than 1 i.e 0, no point found
 		
@@ -381,10 +380,10 @@ vec4 out_Pixel (ivec2 pixel_coords, ivec2 img_size)
 	const vec3 cam_right = cross (u_CameraDirn, world_up);
 	const vec3 cam_up = cross (cam_right, u_CameraDirn);
 
+	int focus = 0, x = 0, y = 0;
     for (int samples_processed = 0; samples_processed < u_NumOfSamples; samples_processed++){
 		vec3 ray_orig;
 		vec3 ray_dirn;{
-	int focus = 0, x = 0, y = 0;
 			ivec2 sample_indexs;{
 				if(focus < grid) {
 					if(x == 0 && y == 0){
@@ -411,7 +410,7 @@ vec4 out_Pixel (ivec2 pixel_coords, ivec2 img_size)
 		if(!u_ShowNormal){
         	final_color += LaunchRays(ray_orig, ray_dirn, samples_processed, u_NumOfSamples, u_NumOfBounce);
 		}else{
-			RayReturnData data = LaunchRay(ray_orig, ray_dirn, 32000, 1.0, samples_processed, u_NumOfSamples);
+			RayReturnData data = LaunchRay(ray_orig, ray_dirn, 32000, 1.0);
 			final_color += data.normal;
 		}
     }

@@ -2,10 +2,9 @@
 #include <GLCoreUtils.h>
 #include <GLCore/Core/KeyCodes.h>
 
-#include "LBVH/lbvh.h"
+#include "In-Next-Week/LBVH/lbvh.h"
 
-
-namespace InNextWeek
+namespace In_Next_Week
 {
 	void BoundingVolumeHierarchy::OnAttach ()
 	{
@@ -60,7 +59,7 @@ namespace InNextWeek
 			m_GeometryGroup[0].ResetInvRotationMatrix ();
 			
 			m_GeometryGroup[1].Typ = Geom_type::CUBOID;
-			m_GeometryGroup[1].Checkpoint1 = m_GeometryGroup[0].BB_max;//+= glm::vec3(-1, -.5f, 1.75f);
+			m_GeometryGroup[1].Checkpoint1 = m_GeometryGroup[0].bb_max;//+= glm::vec3(-1, -.5f, 1.75f);
 			m_GeometryGroup[1].Checkpoint2 = m_GeometryGroup[1].Checkpoint1;//+= glm::vec3(-1, -.5f, 1.75f);
 			m_GeometryGroup[1].TimePeriod = 1000;
 			m_GeometryGroup[1].Scale = glm::vec3 (.25f, .25f, .25f);
@@ -253,7 +252,7 @@ namespace InNextWeek
 						m_UpdateFrame = true;
 					}
 				}
-
+				
 				m_UpdateFrame |= ImGui::DragFloat3 ("Camera Posn", &m_CameraPosn[0], 0.1f);
 				m_UpdateFrame |= ImGui::DragFloat2 ("Camera pitch(y), yaw(x)", &m_CameraPitchYaw[0]);
 
@@ -425,7 +424,7 @@ namespace InNextWeek
 					float _Y[2] = { -Scale.y*0.5f, Scale.y*0.5f };
 					float _X[2] = { -Scale.x*0.5f, Scale.x*0.5f };
 
-					BB_min = glm::vec3 (0), BB_max = glm::vec3 (0);
+					bb_min = glm::vec3 (0), bb_max = glm::vec3 (0);
 					uint8_t i = 0, j = 0, k = 0;
 					for (float z : _Z) {
 						for (float y : _Y) {
@@ -433,8 +432,8 @@ namespace InNextWeek
 
 								glm::vec3 tranf_corner = matrix*glm::vec3 (x, y, z);
 								for (uint8_t i = 0; i < 3; i++) {
-									if (BB_max[i] < tranf_corner[i]) BB_max[i] = tranf_corner[i];
-									if (BB_min[i] > tranf_corner[i]) BB_min[i] = tranf_corner[i];
+									if (bb_max[i] < tranf_corner[i]) bb_max[i] = tranf_corner[i];
+									if (bb_min[i] > tranf_corner[i]) bb_min[i] = tranf_corner[i];
 								}
 
 							i++; } i = 0;
@@ -452,11 +451,11 @@ namespace InNextWeek
 					float y = sqrt (matrix[0][1]*matrix[0][1] + matrix[1][1]*matrix[1][1] + matrix[2][1]*matrix[2][1]);
 					float z = sqrt (matrix[0][2]*matrix[0][2] + matrix[1][2]*matrix[1][2] + matrix[2][2]*matrix[2][2]);
 
-					BB_min = glm::vec3 (-x, -y, -z);
-					BB_max = glm::vec3 (x, y, z);
+					bb_min = glm::vec3 (-x, -y, -z);
+					bb_max = glm::vec3 (x, y, z);
 				}break;
 		}
-		BB_min += curr_position;
-		BB_max += curr_position;
+		bb_min += curr_position;
+		bb_max += curr_position;
 	}
 };

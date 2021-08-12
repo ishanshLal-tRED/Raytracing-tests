@@ -2,11 +2,10 @@
 #include <cmath>
 #include <GLCore.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include "../In-One-Weekend/base.h"
+#include "In-One-Weekend/base.h"
 
-namespace InNextWeek
+namespace In_Next_Week
 {
-	/*BoundingOctalSpaceHierarchy*/
 	class BoundingVolumeHierarchy: public ComputeAndSqrShader_Base
 	{
 	private:
@@ -22,9 +21,9 @@ namespace InNextWeek
 		};
 	public:
 		BoundingVolumeHierarchy ()
-			: ComputeAndSqrShader_Base ("Test - LBVH", "Bounding Spatial Hierarchy", Helper::ReadFileAsString ("./Src/In-Next-Week/00_MotionBlur/computeShaderSrc.glsl", '#').c_str ())
+			: ComputeAndSqrShader_Base ("InNextWeek - 01_BoundingVolumeHierarchy(LBVH)", "Bounding Volume Hierarchy", Helper::ReadFileAsString ("./Src/In-Next-Week/01_BoundingVolumeHierarchy/computeShaderSrc.glsl", '#').c_str ())
 		{}
-		~BoundingVolumeHierarchy () = default;
+		virtual ~BoundingVolumeHierarchy () = default;
 		virtual void OnDetach () override;
 		virtual void OnAttach () override;
 		virtual void OnUpdate (GLCore::Timestep ts);
@@ -88,8 +87,8 @@ namespace InNextWeek
 					*Helper::MATH::MakeRotationX (glm::radians (Rotation.x)) // pitch <-'
 					*Helper::MATH::MakeRotationY (glm::radians (Rotation.y)); // yaw
 				_inv_rotation_matrix =
-					glm::transpose ( // orthogonal matrix
-						matrix
+					glm::transpose (
+						matrix // orthogonal matrix
 					);
 				// Extra stuff like updating the buffer of data to be uploaded
 				UpdateBB ();
@@ -103,8 +102,8 @@ namespace InNextWeek
 
 			glm::vec3 Checkpoint1 = { 1, 0, 0 };
 			glm::vec3 Checkpoint2 = { -1, 0, 0 };
-			glm::vec3 BB_min = { 0, 0, 0 };
-			glm::vec3 BB_max = { 0, 0, 0 };
+			glm::vec3 bb_min = { 0, 0, 0 };
+			glm::vec3 bb_max = { 0, 0, 0 };
 
 			glm::vec3 Rotation = { 0, 0, 0 };
 			glm::vec3 Scale = { 1, 1, 1 };

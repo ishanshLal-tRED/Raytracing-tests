@@ -39,7 +39,7 @@ namespace LBVH
 	{
 		uint32_t idx = 0;
 
-		uint32_t ObjectID = 0;
+		uint32_t ObjectID   = 0;
 		uint32_t range_left = 0, range_right = 0;
 		BVHNode *_parent = nullptr;
 		BVHNode *_left = nullptr, *_right = nullptr;
@@ -59,22 +59,22 @@ namespace LBVH
 		uncommon_upper_bit.reserve (geometries.size () - 1);
 
 		// Create Scene BB
-		glm::vec3 scene_min = geometries[0].BB_min, scene_max = geometries[0].BB_max;
+		glm::vec3 scene_min = geometries[0].bb_min, scene_max = geometries[0].bb_max;
 		for (uint32_t i = 1; i < geometries.size (); i++) {
-			scene_min.x = MIN (scene_min.x, geometries[i].BB_min.x);
-			scene_min.y = MIN (scene_min.y, geometries[i].BB_min.y);
-			scene_min.z = MIN (scene_min.z, geometries[i].BB_min.z);
+			scene_min.x = MIN (scene_min.x, geometries[i].bb_min.x);
+			scene_min.y = MIN (scene_min.y, geometries[i].bb_min.y);
+			scene_min.z = MIN (scene_min.z, geometries[i].bb_min.z);
 
-			scene_max.x = MAX (scene_max.x, geometries[i].BB_max.x);
-			scene_max.y = MAX (scene_max.y, geometries[i].BB_max.y);
-			scene_max.z = MAX (scene_max.z, geometries[i].BB_max.z);
+			scene_max.x = MAX (scene_max.x, geometries[i].bb_max.x);
+			scene_max.y = MAX (scene_max.y, geometries[i].bb_max.y);
+			scene_max.z = MAX (scene_max.z, geometries[i].bb_max.z);
 		}
 
 		{// Gen mortan_code
 			uint32_t i = 0;
 			for (auto &geom : geometries) {
 				// BB_centroid
-				glm::vec3 p = { (geom.BB_min.x + geom.BB_max.x)*0.5f, (geom.BB_min.y + geom.BB_max.y)*0.5f, (geom.BB_min.z + geom.BB_max.z)*0.5f };
+				glm::vec3 p = { (geom.bb_min.x + geom.bb_max.x)*0.5f, (geom.bb_min.y + geom.bb_max.y)*0.5f, (geom.bb_min.z + geom.bb_max.z)*0.5f };
 				p -= scene_min;
 
 				p.x /= (scene_max.x - scene_min.x);
@@ -114,8 +114,8 @@ namespace LBVH
 				node.idx = idx;
 
 				node.ObjectID = key.ObjectID;
-				node.min_BB = geometries[key.ObjectID].BB_min;
-				node.max_BB = geometries[key.ObjectID].BB_max;
+				node.min_BB = geometries[key.ObjectID].bb_min;
+				node.max_BB = geometries[key.ObjectID].bb_max;
 
 				Nodes.push_back (node);
 				idx++;
@@ -233,11 +233,6 @@ namespace LBVH
 
 			line++;
 		}
-
-		//for (uint32_t i = 0; i < HeirarchyTree.size (); i++) {
-		//	std::cout << "\n#" << i << " BB{Min: " << BufferPtr[4*3*i + 0 + 0] << ", " << BufferPtr[4*3*i + 0 + 1] << ", " << BufferPtr[4*3*i + 0 + 2] << "  Max: " << BufferPtr[4*3*i + 4 + 0]  << ", " << BufferPtr[4*3*i + 4 + 1]  << ", " << BufferPtr[4*3*i + 4 + 2] << " }";
-		//	std::cout << " L> " << BufferPtr[4*3*i + 0 + 3] << " R> " << BufferPtr[4*3*i + 4 + 3] << " Prnt> " << BufferPtr[4*3*i + 8 + 1] << " OBJ> " << BufferPtr[4*3*i + 8 + 0];
-		//}
 
 		return { BufferPtr, HeirarchyTree.size () };
 	}

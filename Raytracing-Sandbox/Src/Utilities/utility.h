@@ -34,4 +34,8 @@ namespace Helper
 		glm::mat3 MakeRotationY (float radians);
 		glm::mat3 MakeRotationZ (float radians);
 	}
+	namespace IMGUI
+	{
+		bool DrawVec3Control (const char *label, glm::vec3 &values, float resetValue = 0.0f, float columnWidth = 100.0f);
+	}
 }

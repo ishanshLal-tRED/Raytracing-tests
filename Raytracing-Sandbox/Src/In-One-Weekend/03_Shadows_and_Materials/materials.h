@@ -21,7 +21,7 @@ namespace In_One_Weekend
 		Adding_Materials ()
 			: ComputeAndSqrShader_Base ("InOneWeekend - 03_Materials", "just writing on Screen", Helper::ReadFileAsString ("./Src/In-One-Weekend/03_Shadows_and_Materials/computeShaderSrc.glsl", '#').c_str ())
 		{}
-		~Adding_Materials () = default;
+		virtual ~Adding_Materials () = default;
 		virtual void OnDetach () override;
 		virtual void OnAttach () override;
 		virtual void OnUpdate (GLCore::Timestep ts);

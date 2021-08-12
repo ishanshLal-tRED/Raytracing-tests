@@ -27,7 +27,9 @@ namespace GLCore
 		{
 			return m_Flags & flags;
 		}
-		glm::vec2 ViewportSize ();
+		glm::vec2 ViewportSize () { return m_ViewPortSize; }
+		// Relative to window
+		glm::vec2 ViewportPosition () { m_ViewportPosnRelativeToMain; };
 	private:
 		void FlagSetter (Flags, bool);
 		void FilteredEvent (Event &event);
@@ -39,10 +41,10 @@ namespace GLCore
 		//////
 		// Frame-buffer and etc.
 		/////
-		int m_Flags;
-		glm::vec2 m_ViewPortSize;
+		int m_Flags = 0;
+		glm::vec2 m_ViewPortSize = { 1,1 };
 
-		glm::vec2 m_ViewportPosnRelativeToMain;
+		glm::vec2 m_ViewportPosnRelativeToMain = { 0,0 };
 		std::string m_TestDiscription;
 	};
 }

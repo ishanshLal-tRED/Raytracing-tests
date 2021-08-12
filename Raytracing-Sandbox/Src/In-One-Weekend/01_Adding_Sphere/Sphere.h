@@ -10,7 +10,7 @@ namespace In_One_Weekend
 		Sphere ()
 			: ComputeAndSqrShader_Base ("InOneWeekend - 01_Sphere", "writing on Screen", Helper::ReadFileAsString ("./Src/In-One-Weekend/01_Adding_Sphere/computeShaderSrc.glsl", '#').c_str ())
 		{}
-		~Sphere () = default;
+		virtual ~Sphere () = default;
 		virtual void OnDetach () override;
 		virtual void OnAttach () override;
 		virtual void OnUpdate (GLCore::Timestep ts);

@@ -84,7 +84,9 @@ namespace GLCore
 			{
 				switch (format) {
 					case FramebufferTextureFormat::RGBA8:       return GL_RGBA8;
+					case FramebufferTextureFormat::RGBA32F:     return GL_RGBA32F;
 					case FramebufferTextureFormat::RED_INTEGER: return GL_RED_INTEGER;
+					case FramebufferTextureFormat::RED_FLOAT:   return GL_RED;
 				}
 
 				LOG_ASSERT (false);
@@ -138,8 +140,14 @@ namespace GLCore
 						case FramebufferTextureFormat::RGBA8:
 							Utils::AttachColorTexture (m_ColorAttachments[i], m_Specification.Samples, GL_RGBA8, GL_RGBA, m_Specification.Width, m_Specification.Height, i);
 							break;
+						case FramebufferTextureFormat::RGBA32F:
+							Utils::AttachColorTexture (m_ColorAttachments[i], m_Specification.Samples, GL_RGBA32F, GL_RGBA, m_Specification.Width, m_Specification.Height, i);
+							break;
 						case FramebufferTextureFormat::RED_INTEGER:
 							Utils::AttachColorTexture (m_ColorAttachments[i], m_Specification.Samples, GL_R32I, GL_RED_INTEGER, m_Specification.Width, m_Specification.Height, i);
+							break;
+						case FramebufferTextureFormat::RED_FLOAT:
+							Utils::AttachColorTexture (m_ColorAttachments[i], m_Specification.Samples, GL_R32F, GL_RED, m_Specification.Width, m_Specification.Height, i);
 							break;
 					}
 				}
@@ -192,17 +200,36 @@ namespace GLCore
 			Invalidate ();
 		}
 
-		int Framebuffer::ReadPixel (uint32_t attachmentIndex, int x, int y)
+		void Framebuffer::ReadPixel (uint32_t attachmentIndex, int x, int y, void *cantainer)
 		{
 			LOG_ASSERT (attachmentIndex < m_ColorAttachments.size ());
 
 			glReadBuffer (GL_COLOR_ATTACHMENT0 + attachmentIndex);
-			int pixelData;
-			glReadPixels (x, y, 1, 1, GL_RED_INTEGER, GL_INT, &pixelData);
-			return pixelData;
-
+			
+			FramebufferTextureFormat curr;
+			if (attachmentIndex < m_ColorAttachmentSpecifications.size ())
+			{
+				curr = m_ColorAttachmentSpecifications[attachmentIndex].TextureFormat;
+			} else {
+				curr = m_DepthAttachmentSpecification.TextureFormat;
+			}
+			switch (curr)
+			{
+			case FramebufferTextureFormat::RED_INTEGER:
+				glReadPixels (x, y, 1, 1, GL_RED_INTEGER, GL_INT, &cantainer); break;
+			case FramebufferTextureFormat::RED_FLOAT:
+				glReadPixels (x, y, 1, 1, GL_RED, GL_FLOAT, &cantainer); break;
+			case FramebufferTextureFormat::RGBA8 :
+				glReadPixels (x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &cantainer); break;
+			case FramebufferTextureFormat::RGBA32F :
+				glReadPixels (x, y, 1, 1, GL_RGBA, GL_FLOAT, &cantainer); break;
+			//case FramebufferTextureFormat::DEPTH24STENCIL8:
+			//	glReadPixels (x, y, 1, 1, GL_RED, GL_UNSIGNED_BYTE, &cantainer); break;
+			default:
+				LOG_WARN ("Tried ReadPixel on Non Specified TextureFormat");
+			}
 		}
-
+		
 		void Framebuffer::ClearAttachment (uint32_t attachmentIndex, int value)
 		{
 			LOG_ASSERT (attachmentIndex < m_ColorAttachments.size ());

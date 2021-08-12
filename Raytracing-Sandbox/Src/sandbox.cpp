@@ -10,6 +10,22 @@
 #include "In-One-Weekend/03_Shadows_and_Materials/materials.h"
 #include "In-Next-Week/00_MotionBlur/motion_blur.h"
 #include "In-Next-Week/01_BoundingVolumeHierarchy/bounding_volume_hierarchy.h"
+#include "Test/BVH.h"
+
+//static size_t memory_in_use = 0;
+//static size_t peak_memory_use = 0;
+//// Damn there is hefty amount of memory leak
+//void *operator new(size_t size)
+//{
+//	memory_in_use += size;
+//	peak_memory_use += (peak_memory_use < memory_in_use ? size : 0);
+//	return malloc (size);
+//}
+//void operator delete(void* ptr, size_t size)
+//{
+//	memory_in_use -= size;
+//	free (ptr);
+//}
 
 class MySandbox
 	: public GLCore::Application
@@ -25,16 +41,19 @@ public:
 		// PushLayer<In_One_Weekend::Image> ();
 		// PushLayer<In_One_Weekend::Sphere> ();
 		// PushLayer<In_One_Weekend::Groups> ();
-		PushLayer<In_One_Weekend::Adding_Materials> ();
+		// PushLayer<In_One_Weekend::Adding_Materials> ();
 		PushLayer<In_Next_Week::MotionBlur> ();
-		PushLayer<In_Next_Week::BoundingVolumeHierarchy> ();
+		// PushLayer<In_Next_Week::BoundingVolumeHierarchy> ();
+		PushLayer<In_Next_Week::BVH> ();
 	}
 };
 
 int main()
 {
-	std::unique_ptr<MySandbox> app = std::make_unique<MySandbox>();
+	MySandbox *app = new MySandbox();
 	app->Run();
+	delete app;
+	//std::cout << "memory leak: " << memory_in_use << ", peak memory use: "<<peak_memory_use;
 }
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
 // Debug program: F5 or Debug > Start Debugging menu

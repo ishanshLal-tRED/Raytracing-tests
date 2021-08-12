@@ -16,7 +16,6 @@ uniform int u_NumOfSamples;
 
 uniform bool u_ShowNormal;
 
-
 uniform int u_NumOfObj;
 layout (r32f   , binding = 0) uniform sampler2D u_ObjGroupIDTexture;
 layout (rgba32f, binding = 1) uniform sampler2D u_ObjGroupDataTexture;
@@ -199,8 +198,8 @@ int pop_out_node_ID(){
 	}
 	return -1;
 }
-#define node_data_size textureSize(u_HeirarchyTree, 0).x;
-#define node_tree_size textureSize(u_HeirarchyTree, 0).y; // or tree length
+#define node_data_size textureSize(u_HeirarchyTree, 0).x
+#define node_tree_size textureSize(u_HeirarchyTree, 0).y // or tree length
 
 int FindNextIntersectionCandidate(Ray ray){
 	//bool notfound_leaf = true;
@@ -213,10 +212,12 @@ int FindNextIntersectionCandidate(Ray ray){
 		int ID = pop_out_node_ID();
 		
 		// check intersection
-		vec3 BBmin, BBmax;int left, right;{
-			vec4 data;
-			data = texture(u_HeirarchyTree, vec2(0.1 / node_data_size, (ID + 0.1) / node_tree_size));
-			BBmin = data.xyz; left = int(data.w);
+		vec3 BBmin, BBmax;
+		int left, right;
+		{
+			vec4 data = texture(u_HeirarchyTree, vec2(0.1 / node_data_size, (ID + 0.1) / node_tree_size));
+			BBmin = data.xyz; 
+			left = int(data.w);
 			
 			data = texture(u_HeirarchyTree, vec2(1.1 / node_data_size, (ID + 0.1) / node_tree_size));
 			BBmax = data.xyz; right = int(data.w);
@@ -258,7 +259,7 @@ RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float col
 
 	vec3 final_tranf_ray_dirn = vec3(0);
 
-	int IntersectedObjID = FindNextIntersectionCandidate(g_origin, g_dirn);
+	int IntersectedObjID = FindNextIntersectionCandidate(Ray(g_origin, g_dirn));
 
     while(IntersectedObjID > -1){
 		// float t = TestIntersectionWithObj(g_origin, g_dirn, IntersectedObjID, transformed_ray_dirn);
@@ -289,7 +290,7 @@ RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float col
 			min_t_depth = t;
 		}
 		
-		IntersectedObjID = FindIntersectionCandidate(g_origin, g_dirn); // Find nxt intersection
+		IntersectedObjID = FindNextIntersectionCandidate(Ray(g_origin, g_dirn)); // Find nxt intersection
 	}
 	
     if(min_t_depth < max_t_depth){
@@ -317,7 +318,7 @@ RayReturnData LaunchRay(vec3 g_origin, vec3 g_dirn, float max_t_depth, float col
         data.point = g_origin + min_t_depth*g_dirn; // removing just a tinybit to ensure point is above the surface instead of being inside the shape
         data.normal = normalize(rot_matrix_of_Intersected_obj*data.normal);
         data.reflected = normalize(rot_matrix_of_Intersected_obj*data.reflected);
-        data.color *= color_contribution;
+        //data.color *= color_contribution;
     }else data.point = vec3(0), data.normal = vec3(0);
     return data;
 };
@@ -368,7 +369,6 @@ vec3 LaunchRays(vec3 ray_origin, vec3 ray_dirn, int sample_index, const int max_
         bool ray_hit = dot(data.normal, data.normal) > 0.9;// or less than 1 i.e 0, no point found
 		
         // else add_color, and try push to stack
-        sample_color += contribution*(ray_hit ? data.color : Background_Color(curr_ray.Dirn));
 
         if(bounced < max_bounces && ray_hit){
             bounced++; // curr_ray can bounce more
@@ -412,14 +412,18 @@ vec3 LaunchRays(vec3 ray_origin, vec3 ray_dirn, int sample_index, const int max_
 				if(spawnReflected){
 					point = data.point -0.000015*_normal; // rectify
 					stack_push(Ray(point, reflection_dirn), contribution*reflected_contribution, refractive_index, bounced);
+					contribution -=	contribution*reflected_contribution;
 				}
 				if(spawnRefracted){
 					point = data.point +0.000015*_normal; // rectify
 					stack_push(Ray(point, refraction_dirn), contribution*refracted_contribution, target_RI, bounced);
+					contribution -= contribution*refracted_contribution;
 				}
+
 			}
 
         }else skippast_ParentsForRI = 0; // refracted ray reached end
+        sample_color += (ray_hit ? data.color : contribution*Background_Color(curr_ray.Dirn));
     }
     return sample_color;
 }
@@ -468,7 +472,7 @@ vec4 out_Pixel (ivec2 pixel_coords, ivec2 img_size)
 			
 			vec3 lookat_dirn = normalize(look_at - ray_orig);
 			vec3 _right = cross (lookat_dirn, world_up);
-			vec3 _up = cross (cam_right, lookat_dirn);
+			vec3 _up = cross (_right, lookat_dirn);
 
 			ray_dirn = normalize(lookat_dirn*screen_dist + _right*(scr_x + (del_scr_x*sample_indexs.x)) + _up*(scr_y + (del_scr_y*sample_indexs.y)));
 		}

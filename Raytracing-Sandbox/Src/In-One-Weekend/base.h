@@ -30,7 +30,8 @@ protected:
 		ImVec2 textbox_contentRegion (contentRegion.x, contentRegion.y - 60);
 		ImVec2 button_contentRegion (contentRegion.x, 50);
 
-		ImGui::InputTextMultiline ("Compute Shader Source: ", m_ComputeShaderTXT.raw_data (), m_ComputeShaderTXT.size (), textbox_contentRegion);
+		ImGui::InputTextMultiline ("Compute Shader Source: ", m_ComputeShaderTXT.raw_data (), m_ComputeShaderTXT.size (), textbox_contentRegion
+								   , ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_AllowTabInput, buff_resize_callback, &m_ComputeShaderTXT);
 		if (ImGui::Button ("Reload Compute Shader", button_contentRegion))
 			ReloadComputeShader ();
 	}
@@ -42,12 +43,14 @@ protected:
 		ImVec2 button_contentRegion (contentRegion.x, 60);
 
 		ImGui::Text ("Vertex SRC:");
-		ImGui::InputTextMultiline ("Vert SRC", m_SquareShaderTXT_vert.raw_data (), m_SquareShaderTXT_vert.size (), textbox_contentRegion);
+		ImGui::InputTextMultiline ("Vert SRC", m_SquareShaderTXT_vert.raw_data (), m_SquareShaderTXT_vert.size (), textbox_contentRegion
+								   , ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_AllowTabInput, buff_resize_callback, &m_SquareShaderTXT_vert);
 
 		ImGui::Separator ();
 
 		ImGui::Text ("Fragment SRC:");
-		ImGui::InputTextMultiline ("Frag SRC", m_SquareShaderTXT_frag.raw_data (), m_SquareShaderTXT_frag.size (), textbox_contentRegion);
+		ImGui::InputTextMultiline ("Frag SRC", m_SquareShaderTXT_frag.raw_data (), m_SquareShaderTXT_frag.size (), textbox_contentRegion
+								   , ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_AllowTabInput, buff_resize_callback, &m_SquareShaderTXT_frag);
 
 		if (ImGui::Button ("Reload Square Shader", button_contentRegion))
 			ReloadSquareShader ();
@@ -140,46 +143,59 @@ protected:
 
 	//////////////
 	// Structures
-private:
+protected:
 	struct Buffer
 	{
 	public:
-		static Buffer Create (const char *default_data, const uint16_t min_size = 1024)
+		static Buffer Create (const char *default_data, const uint32_t min_size = 1024)
 		{
-			uint16_t size_str = 0;
+			uint32_t size_str = 0;
 			while (default_data[size_str] != '\0')
 				size_str++;
 
-			const uint16_t new_size_str = (size_str > min_size ? size_str + 100 : min_size);
+			const uint32_t new_size_str = (size_str > min_size ? size_str + 100 : min_size);
 
 			char *data = new char[new_size_str];
-			size_str++; // copy '\0'
-			for (uint16_t i = 0; i < size_str; i++) {
-				data[i] = default_data[i];
-			}
+			size_str++;
+			
+			memcpy_s (data, new_size_str, default_data, size_str);
+			data[size_str] = '\0';
+
 			return Buffer (data, new_size_str);
 		}
-		Buffer (const uint16_t size = 1537)
+		Buffer (const uint32_t size = 1537)
 			:_size (size)
 		{
 			_data = new char[size];
 			_data[0] = '\0';
 		}
+		void resize (uint32_t new_size)
+		{
+			new_size++; // 1-more
+			if (new_size > _size) {
+				char *data = new char[new_size];
+				memcpy_s (data, new_size, _data, _size);
+				delete[] _data;
+				_data = data;
+				_size = new_size;
+				_data[new_size - 1] = '\0';
+			}
+		}
 		~Buffer ()
 		{
-			delete _data;
+			delete[] _data;
 			_data = 0;
 		}
 		const char *data () const { return _data; }
 		char *raw_data () { return _data; }
-		const uint16_t size () const { return _size; }
+		const uint32_t size () const { return _size > 0 ? _size - 1 : 0; }
 	private:
-		Buffer (char *data, const uint16_t size = 1537)
+		Buffer (char *data, const uint32_t size = 1537)
 			:_data (data), _size (size)
 		{}
 	private:
 		char *_data;
-		const uint16_t _size;
+		uint32_t _size;
 	};
 	//////////////
 	// Variables
@@ -189,6 +205,17 @@ protected:
 	static const char *s_default_sqr_shader_frag;
 	GLuint m_ComputeShaderProgID = 0, m_SquareShaderProgID = 0;
 	GLuint m_QuadVA = 0, m_QuadVB = 0, m_QuadIB = 0;
-private:
+
 	Buffer m_ComputeShaderTXT, m_SquareShaderTXT_vert, m_SquareShaderTXT_frag;
+private:
+	static int buff_resize_callback (ImGuiInputTextCallbackData *data)
+	{
+		if (data->EventFlag = ImGuiInputTextFlags_CallbackResize)
+		{
+			Buffer* buff = (Buffer *)data->UserData;
+			buff->resize (data->BufTextLen);
+			data->Buf = buff->raw_data ();
+		}
+		return 0;
+	}
 };

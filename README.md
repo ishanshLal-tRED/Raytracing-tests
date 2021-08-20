@@ -39,7 +39,8 @@ In-One-Weekend/
 In-Next-Week/
 	00_MotionBlur
 	01_BoundingVolumeHierarchy (LBVH to be exact(not GPU but CPU based), NOTE: reflections are not good due to motion blurring not beacause of bug, I always confuse In spelling of heirarchy, code needs very-good amount of cleanup)
-   
+  // SWITCHING PRIORITIES, NOW GOAL IS TO FINISH THIS AS SOON AS POSSIBLE INSTEAD OF MAKINg IT LOOK GOOD (17.08.2021) {also the reason why i'm not switching to SSBO instead of texture for buffer}. 
+
 ```
 
 # 2. How to use

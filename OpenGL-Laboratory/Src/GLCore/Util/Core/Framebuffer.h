@@ -9,12 +9,14 @@ namespace GLCore
 		enum class FramebufferTextureFormat
 		{
 			None = 0,
+			// Depth/stencil
 
 			// Color
 			RGBA8,
+			RGBA32F,
 			RED_INTEGER,
+			RED_FLOAT,
 
-			// Depth/stencil
 			DEPTH24STENCIL8,
 
 			// Defaults
@@ -61,7 +63,8 @@ namespace GLCore
 			virtual void Unbind ();
 
 			virtual void Resize (uint32_t width, uint32_t height);
-			virtual int ReadPixel (uint32_t attachmentIndex, int x, int y);
+
+			void ReadPixel (uint32_t attachmentIndex, int x, int y, void* cantainer);
 
 			virtual void ClearAttachment (uint32_t attachmentIndex, int value);
 

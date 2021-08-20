@@ -23,7 +23,7 @@ namespace In_Next_Week
 		MotionBlur ()
 			: ComputeAndSqrShader_Base ("InNextWeek - 00_MotionBlur", "Motion Blurring", Helper::ReadFileAsString ("./Src/In-Next-Week/00_MotionBlur/computeShaderSrc.glsl", '#').c_str ())
 		{}
-		~MotionBlur () = default;
+		virtual ~MotionBlur () = default;
 		virtual void OnDetach () override;
 		virtual void OnAttach () override;
 		virtual void OnUpdate (GLCore::Timestep ts);

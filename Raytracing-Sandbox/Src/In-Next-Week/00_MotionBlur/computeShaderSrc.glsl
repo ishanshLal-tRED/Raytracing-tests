@@ -381,10 +381,10 @@ vec4 out_Pixel (ivec2 pixel_coords, ivec2 img_size)
 	const vec3 cam_right = cross (u_CameraDirn, world_up);
 	const vec3 cam_up = cross (cam_right, u_CameraDirn);
 
-	int focus = 0, x = 0, y = 0;
     for (int samples_processed = 0; samples_processed < u_NumOfSamples; samples_processed++){
 		vec3 ray_orig;
 		vec3 ray_dirn;{
+	int focus = 0, x = 0, y = 0;
 			ivec2 sample_indexs;{
 				if(focus < grid) {
 					if(x == 0 && y == 0){

@@ -10,7 +10,7 @@ namespace In_One_Weekend
 		Image ()
 			: ComputeAndSqrShader_Base ("InOneWeekend - 00_Image", "writing on Screen")
 		{}
-		~Image () = default;
+		virtual ~Image () = default;
 		virtual void OnDetach () override;
 		virtual void OnAttach () override;
 		virtual void OnUpdate (GLCore::Timestep ts);
@@ -20,5 +20,6 @@ namespace In_One_Weekend
 		GLuint m_ComputeShaderOutputTex = 0;
 		const glm::ivec3 Work_Group_Count = { 0,0,0 }, Work_Group_Size = { 0,0,0 };
 		const glm::ivec2 m_OutputTexDimensions = glm::ivec2 (100, 100);
+
 	};
 };

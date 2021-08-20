@@ -19,7 +19,7 @@ namespace In_One_Weekend
 		Groups ()
 			: ComputeAndSqrShader_Base ("InOneWeekend - 02_Group", "just writing on Screen", Helper::ReadFileAsString("./Src/In-One-Weekend/02_Groups/computeShaderSrc.glsl", '#').c_str ())
 		{}
-		~Groups () = default;
+		virtual ~Groups () = default;
 		virtual void OnDetach () override;
 		virtual void OnAttach () override;
 		virtual void OnUpdate (GLCore::Timestep ts);

@@ -62,7 +62,7 @@ private:
 		}
 		~Buffer ()
 		{
-			delete _data;
+			delete[] _data;
 			_data = 0;
 		}
 		const char *data () const { return _data; }

@@ -11,6 +11,7 @@
 #include "In-One-Weekend/03_Shadows_and_Materials/materials.h"
 #include "In-Next-Week/00_MotionBlur/motion_blur.h"
 #include "In-Next-Week/01_BoundingVolumeHierarchy/BVH.h"
+#include "In-Next-Week/03_Solid_And_Noise_Textures/texturing.h"
 
 //static size_t memory_in_use = 0;
 //static size_t peak_memory_use = 0;
@@ -45,6 +46,7 @@ public:
 		PushLayer<In_Next_Week::MotionBlur> ();
 		// PushLayer<In_Next_Week::BoundingVolumeHierarchy> ();
 		PushLayer<In_Next_Week::BVH> ();
+		PushLayer<In_Next_Week::Texturing> ();
 		PushLayer<BuffSupply::Test> ();
 	}
 };

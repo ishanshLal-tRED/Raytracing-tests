@@ -61,6 +61,7 @@ struct Material { // Material Specifications
 	// reflectivity: how much of light gonna reflect away
     
 	float ScatteritivityRfr, ScatteritivityRfl; // scatteritivity (refracted, reflected): amount by which light gonna scatter/deviate
+	uint TextureIndex;
 };
 ////// Ray Related ////////
 struct Ray {
@@ -210,12 +211,6 @@ bool TestIntersectAABB(vec3 minimum, vec3 maximum, Ray ray, float t_limiting) { 
 
 uniform uint u_NumOfGeometry;
 uniform int u_NumOfBounces = 3;
-#define DEFAULT_COLOR            vec3(0,0,0)
-#define DEFAULT_REFRACTIVE_INDEX 1.5
-#define DEFAULT_REFRACTIVITY     0.7
-#define DEFAULT_REFLECTIVITY     0.0
-#define DEFAULT_SCATTER_REFRACT  0.0
-#define DEFAULT_SCATTER_REFLECT  0.0
 
 #define u_NumOfFocusDist 1
 uniform struct
@@ -227,8 +222,11 @@ uniform struct
 	float Aperture;
 } u_Camera;
 
-bool IntersectRay(Ray ray, float GeomIndex, inout Transform_Data final_transform, inout float t_limiting, inout vec3 normal_at_hit){
-	Transform_Data transform; uint Type = 0;
+#define u_NumOfTexture2D 1
+layout(rgba32f, binding = 2) uniform sampler2D u_Texture2D[u_NumOfTexture2D];
+
+bool IntersectRay(Ray ray, float GeomIndex, inout Transform_Data final_transform, inout float t_limiting, inout vec3 normal_at_hit, inout float extraData){
+	Transform_Data transform; uint Type = 0; float extra_data;
 	{
 		vec4 data;
 		data = texture(u_GeometryData, vec2(0.1 / textureSize(u_GeometryData, 0).x, (GeomIndex + 0.1) / textureSize(u_GeometryData, 0).y));
@@ -250,6 +248,7 @@ bool IntersectRay(Ray ray, float GeomIndex, inout Transform_Data final_transform
 		data = texture(u_GeometryData, vec2(4.1 / textureSize(u_GeometryData, 0).x, (GeomIndex + 0.1) / textureSize(u_GeometryData, 0).y));
 		transform.Delta_Position.yz = data.xy;
 		Type = uint(data.z + 0.1f);
+		extra_data = data.w;
 	}
 	transform.Rotation_Matrix = transpose(transform.Rotation_Matrix); // Invert Orthogonal Mtrix
 	float ratio = float(gl_LocalInvocationIndex)/(gl_WorkGroupSize.x*gl_WorkGroupSize.y*gl_WorkGroupSize.z);
@@ -263,6 +262,7 @@ bool IntersectRay(Ray ray, float GeomIndex, inout Transform_Data final_transform
 		final_transform.Rotation_Matrix = transform.Rotation_Matrix;
 		final_transform.Scale = transform.Scale;
 		normal_at_hit = transform.Rotation_Matrix * SurfaceNormal(t, transformed, transform.Scale, Type);
+		extraData = extra_data;
 		return true;
 	}
 	return false;
@@ -290,6 +290,7 @@ bool IfInsideAABBAndLeaf_TryAccumulateRI(float NodeIndex, vec3 hitPoint, inout f
 		if(leftData < 0.1){ // Leaf Node with objID ∈[0 -NumOfGeom)
 			Transform_Data transform;
 			int Type;
+			float RefractiveIndex;
 			float GeomIndex = (-leftData);
 			{
 				vec4 data;
@@ -312,6 +313,7 @@ bool IfInsideAABBAndLeaf_TryAccumulateRI(float NodeIndex, vec3 hitPoint, inout f
 				data = texture(u_GeometryData, vec2(4.1 / textureSize(u_GeometryData, 0).x, (GeomIndex + 0.1) / textureSize(u_GeometryData, 0).y));
 				transform.Delta_Position.yz = data.xy;
 				Type = int(data.z + 0.1);
+				RefractiveIndex = data.w;
 			}
 			float ratio = float(gl_LocalInvocationIndex)/(gl_WorkGroupSize.x*gl_WorkGroupSize.y*gl_WorkGroupSize.z);
 			vec3 vector = hitPoint - transform.Position + (1 - ratio)*transform.Delta_Position;
@@ -333,7 +335,7 @@ bool IfInsideAABBAndLeaf_TryAccumulateRI(float NodeIndex, vec3 hitPoint, inout f
 					isInside = 0;
 			}
 			if(isInside != 0) { // Inside, Accumulate RI
-				accumulator += texture(u_GeometryData, vec2(5.1 / textureSize(u_GeometryData, 0).x, (GeomIndex + 0.1) / textureSize(u_GeometryData, 0).y)).x, accumulator_counter++;
+				accumulator += RefractiveIndex, accumulator_counter++;
 				// leaf Accumulation
 			}
 			return true; // move Up the tree
@@ -345,20 +347,76 @@ bool IfInsideAABBAndLeaf_TryAccumulateRI(float NodeIndex, vec3 hitPoint, inout f
 }
 
 
+// vec3 TextureColor(vec3 Normal, uint TextureIndex) { // Using normal to determine texture position, a shortcut.
+// 	return vec3(1);
+// }
+
 // Dosen't sets Normal though, Normal is set by IntersectRay() {because its faster that way}
-void FillHitData(Ray ray, float t_dist, float Geom, inout RayHitData data){
-	data.HitPoint = ray.Origin + t_dist*ray.Direction;
-	// data.NormalAtHit = transform.Rotation_Matrix * normal;
+void FillHitMaterialData(vec3 LocalHitPosn, float Geom, inout Material data)
+{
 	vec4 getter;
 	getter = texture(u_GeometryData, vec2(5.1 / textureSize(u_GeometryData, 0).x, (Geom + 0.1) / textureSize(u_GeometryData, 0).y));
-	data.MTL.RefractiveIndex   = getter.x;
-	data.MTL.Refractivity      = getter.y;
-	data.MTL.Reflectivity      = getter.z;
-	data.MTL.ScatteritivityRfr = getter.w;
+	// data.MTL.RefractiveIndex; // Set
+	data.Refractivity      = getter.x;
+	data.Reflectivity      = getter.y;
+	data.ScatteritivityRfr = getter.z;
+	data.ScatteritivityRfl = getter.w;
 	getter = texture(u_GeometryData, vec2(6.1 / textureSize(u_GeometryData, 0).x, (Geom + 0.1) / textureSize(u_GeometryData, 0).y));
-	data.MTL.ScatteritivityRfl = getter.x;
-	data.MTL.Color             = getter.yzw;
+	data.Color             = getter.xyz;
+	data.TextureIndex      = uint(getter.w + 0.1);
+
+	if(data.TextureIndex > 0){
+		LocalHitPosn = normalize(LocalHitPosn);
+		float max = LocalHitPosn[0];
+		uint face = max > 0 ? 1 : 3; // +y = 0, +x = 1, +z = 2, -x = 3, -z = 4, -y = 5
+		vec3 faceDirn = (max > 0 ? 1 : -1)*vec3(1, 0, 0);
+
+		for(uint i = 1; i < 3; i++)
+		{
+			if(abs(max) < abs(LocalHitPosn[i])) {
+				max = LocalHitPosn[i];
+				face = max > 0 ? (i == 1 ? 0 : 2) : (i == 1 ? 5 : 4);// (i - 1)*2 : (5 - i);
+				// max > 0 -> +y & +z, if i = 1 i.e +y == 0 orif i = 2 i.e +z == 2; 
+				//		  !-> -y & -z, if i = 1 i.e -y == 5 orif i = 2 i.e -z == 4;
+
+				faceDirn = (max > 0 ? 1 : -1)*vec3(int(i == 0), int(i == 1), int(i == 2));
+			}
+		}
+
+		LocalHitPosn /= dot(LocalHitPosn, faceDirn);
+		LocalHitPosn *= 0.5; // (-1, 1) -> (-0.5, 0.5)
+		LocalHitPosn += vec3(0.5); // (-0.5, 0.5) -> (0, 1)
+		// find transition, +y(x, invert(z)) -> +x(invert(y), invert(z)) -> +z(invert(y), x) -> -x(invert(y), z) -> -z(invert(y), invert(x)) -> -y(z, invert(x))
+		vec2 texCoord;
+		switch(face){
+			case 0:
+				texCoord = vec2(LocalHitPosn.x, 1.0 - LocalHitPosn.z);
+				break;
+			case 1:
+				texCoord = vec2(1.0 - LocalHitPosn.y, 1.0 - LocalHitPosn.z);
+				break;
+			case 2:
+				texCoord = vec2(1.0 - LocalHitPosn.y, LocalHitPosn.x);
+				break;
+			case 3:
+				texCoord = vec2(1.0 - LocalHitPosn.y, LocalHitPosn.z);
+				break;
+			case 4:
+				texCoord = vec2(1.0 - LocalHitPosn.y, 1.0 - LocalHitPosn.x);
+				break;
+			case 5:
+				texCoord = vec2(LocalHitPosn.z, 1.0 - LocalHitPosn.x);
+				break;
+		}
+
+		// get color from texture, and multiply rbg(s) with data.Color
+		vec3 tex_color = texture(u_Texture2D[data.TextureIndex - 1], vec2(face*0.16666 + texCoord.x*0.16666, texCoord.y)).xyz;
+		data.Color.r /***/= tex_color.r;
+		data.Color.g /***/= tex_color.g;
+		data.Color.b /***/= tex_color.b;
+	}
 }
+
 
 #define MAX_T_DEPTH 32000.0f 
 void out_Pixel(uvec2 pixel_coords, out vec3 final_color, out float final_depth){
@@ -385,28 +443,12 @@ void out_Pixel(uvec2 pixel_coords, out vec3 final_color, out float final_depth){
 		vec3 ray_right = cross(cam_ray.Direction,    world_up);
 		vec3 ray_up    = cross(ray_right  , cam_ray.Direction);
 
-	#if MULTIFOCUS // Incomplete or NotWorking or badImplimentation
-		float first_limit = u_Camera.FocusDist[0]*0.5f;
-		float crossedLens = 0.0f;
-
-		vec3 newDirn = normalize(cam_ray.Direction*(first_limit) + ray_right*relative_offset.x + ray_up*relative_offset.y);
-
-		vec3 reflection_normal = normalize(- ray_right*relative_offset.x - ray_up*relative_offset.y); // reflect this sample_ray by normal.
-		float multiplierToLensDistForRayTarvelDist = 1.0f/dot(cam_ray.Direction, newDirn);
-		cam_ray.Direction = newDirn;
-
-		STK_PUSH(flt_Stack, reflection_normal.x); // 0
-		STK_PUSH(flt_Stack, reflection_normal.y); // 1
-		STK_PUSH(flt_Stack, reflection_normal.z); // 2
-		STK_PUSH(flt_Stack, multiplierToLensDistForRayTarvelDist); // 3
-		STK_PUSH(flt_Stack, first_limit); // 4
-		STK_PUSH(flt_Stack, crossedLens); // 5
-	#else // Single Implimentation
+		// Single Implimentation
 		vec3 newTip = cam_ray.Origin + cam_ray.Direction + ray_right*relative_offset.x + ray_up*relative_offset.y;
 		vec3 lookAtDirn = normalize((cam_ray.Origin + cam_ray.Direction*u_Camera.FocusDist[0]) - newTip);
 		cam_ray.Origin = newTip - lookAtDirn;
 		cam_ray.Direction = lookAtDirn;
-	#endif
+	
 		STK_PUSH_RAY_DATA(flt_Stack, cam_ray, 1, 0);
 	}
 
@@ -421,13 +463,10 @@ void out_Pixel(uvec2 pixel_coords, out vec3 final_color, out float final_depth){
 			STK_POP_RAY_DATA_TO(flt_Stack, currRay, contribution, bounced);
 			
 			// SET LIMIT
-			float t_limiting = 
-			  #if MULTIFOCUS
-				int(bounced+0.1f) == 0 ? flt_Stack.data[4] : 
-			  #endif
-				MAX_T_DEPTH; 
+			float t_limiting = MAX_T_DEPTH; 
 			float final_GeomIndex = 0;
 
+			vec3 localHitPosnOnGeom;
 			{
 				Transform_Data final_transform; 
 				float final_parent, final_leaf; // Parent Node in scene heirarchy
@@ -464,7 +503,8 @@ void out_Pixel(uvec2 pixel_coords, out vec3 final_color, out float final_depth){
 						}
 					}
 					if(GeomIndex > -0.9) {
-						bool intersected = IntersectRay(currRay, GeomIndex, final_transform, t_limiting, hitData.NormalAtHit);
+						// Material's Refractive Index
+						bool intersected = IntersectRay(currRay, GeomIndex, final_transform, t_limiting, hitData.NormalAtHit, hitData.MTL.RefractiveIndex);
 						final_GeomIndex = intersected ? GeomIndex : final_GeomIndex
 						, final_parent = intersected ? parentIDX : final_parent
 						, final_leaf = intersected ? NodeIndex : final_leaf;
@@ -473,15 +513,13 @@ void out_Pixel(uvec2 pixel_coords, out vec3 final_color, out float final_depth){
 				flt_Stack.size = InitialSize;
 				IncomingDirn = currRay.Direction;
 				
+				//######### Shortcut to find 
+				hitData.HitPoint = currRay.Origin + t_limiting*currRay.Direction;
+				localHitPosnOnGeom = transpose(final_transform.Rotation_Matrix)*(hitData.HitPoint - final_transform.Position);
 			}
 			
-			if(t_limiting < (
-			  #if MULTIFOCUS
-				int(bounced+0.1f) == 0 ? flt_Stack.data[4] : 
-			  #endif
-				MAX_T_DEPTH)) { // Some-one hit, gen_data
-
-				FillHitData(currRay, t_limiting, final_GeomIndex, hitData);
+			if(t_limiting < MAX_T_DEPTH) { // Some-one hit, gen_data
+				FillHitMaterialData(localHitPosnOnGeom, final_GeomIndex, hitData.MTL);
 				
 				uint InitialSize = flt_Stack.size;
 				// Calculate Surrounding_RI, this top-down traversal is expensive, i spent way to much time on it
@@ -502,52 +540,13 @@ void out_Pixel(uvec2 pixel_coords, out vec3 final_color, out float final_depth){
 				else Surrounding_RI = 1;
 
 			} else { // No Hit
-			  #if MULTIFOCUS
-				if(int(bounced+0.1f) == 0 && int(flt_Stack.data[5] + 0.1) < u_NumOfFocusDist) 
-				{ // Move to next focal lens
-					vec3 reflection_normal  = vec3(flt_Stack.data[0], flt_Stack.data[1], flt_Stack.data[2]);
-					flt_Stack.data[0] = -flt_Stack.data[0];
-					flt_Stack.data[1] = -flt_Stack.data[1];
-					flt_Stack.data[2] = -flt_Stack.data[2];
-					float multiplier        = flt_Stack.data[3];
-					float distanceToNxtLens = flt_Stack.data[4];
-					currRay.Origin    = currRay.Origin + (multiplier*distanceToNxtLens*currRay.Direction);
-					currRay.Direction = reflect(currRay.Direction, reflection_normal);
-					
-					int lens = int(flt_Stack.data[5] + 0.1);
-					if (lens < u_NumOfFocusDist - 1) // final lens
-						flt_Stack.data[4] = (u_Camera.FocusDist[lens + 1] - u_Camera.FocusDist[lens])*0.5f + (u_Camera.FocusDist[lens] - (lens > 0 ? u_Camera.FocusDist[max(lens - 1, 0)] : 0))*0.5f;
-					else flt_Stack.data[4] = MAX_T_DEPTH - multiplier*flt_Stack.data[4];
 				
-					flt_Stack.data[5]++;
-
-					flt_Stack.size = 6;
-					STK_PUSH_RAY_DATA(flt_Stack, currRay, 1, 0);
-				}
-				else 
-			  #endif
-				{
-					final_color += contribution*vec3(Background_Color(currRay.Direction)), final_depth = t_limiting;
-			  #if MULTIFOCUS
-///////////////////////////////////////////////////////////////////////
-					if(int(bounced + 0.1f) == 0) // && flt_Stack.size == 6)
-						flt_Stack.size = 0;
-///////////////////////////////////////////////////////////////////////
-			  #endif
-				}
-
+				final_color += contribution*vec3(Background_Color(currRay.Direction)), final_depth = t_limiting;
+			  
 				continue;
 //  ^--------This LOOP (Outer most)
 			}
-		}
-		
-	  #if MULTIFOCUS
-///////////////////////////////////////////////////////////////////////
-		if(int(bounced+0.1f) == 0) // && flt_Stack.size == 6)
-			flt_Stack.size = 0;
-///////////////////////////////////////////////////////////////////////
-	  #endif
-		
+		}		
 
 		bounced++;
 		// Handle Hit And push rays
@@ -599,28 +598,10 @@ void out_Pixel(uvec2 pixel_coords, out vec3 final_color, out float final_depth){
 }
 
 void prepare(){
-	//if(gl_LocalInvocationIndex == 0){
-	//	uint grid = 1, NumOfSamples = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
-	//	while(grid*grid < NumOfSamples) // only 2D
-	//		grid++;
-	//	uint focus = 0, x = 0, y = 0;
-	//	ivec2 sample_indexs;
-	//	float del = 1/float(imageSize(img_out).y);
-	//	del /= grid;
-	//	
-	//	for(uint i = 0; i < NumOfSamples && focus < grid; i++) {
-	//		if(x == 0 && y == 0){
-	//			focus++;
-	//			x = focus, y = focus, sample_indexs = ivec2(focus,focus);
-	//		}else{
-	//			if(x < y) y--, sample_indexs = ivec2(focus, y);
-	//			else x--, sample_indexs = ivec2(x, focus);
-	//		}
-	//		shared_sample_storage[i] = vec3(sample_indexs.x*del, sample_indexs.y*del, 0);
-	//	}
-	//}
+	
 	flt_Stack.size = 0;
 	flt_Stack.data[0] = 0;
+
 }
 void End(){
 #if 0

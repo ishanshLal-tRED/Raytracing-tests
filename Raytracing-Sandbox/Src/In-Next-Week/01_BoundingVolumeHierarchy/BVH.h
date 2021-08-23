@@ -28,6 +28,7 @@ namespace In_Next_Week
 	{
 	public:
 		GeometryData (): Transform_Data () {};
+		virtual ~GeometryData () {};
 
 		// virtual std::pair<glm::vec3, glm::vec3> CalculateBBMinMax () override
 		

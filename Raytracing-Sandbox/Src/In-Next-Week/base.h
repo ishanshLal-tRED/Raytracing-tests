@@ -1,4 +1,5 @@
-﻿#include "In-One-Weekend/base.h"
+﻿#pragma once
+#include "In-One-Weekend/base.h"
 #include <GLCoreUtils.h>
 #include <stack>
 #include <thread>
@@ -17,6 +18,7 @@ namespace In_Next_Week
 	class Transform_Data
 	{
 	public:
+		virtual ~Transform_Data () {}
 		// Dynamic Implementation of calculation of AABB min, max
 		virtual std::pair<glm::vec3, glm::vec3> CalculateBBMinMax ()
 		{
@@ -454,8 +456,8 @@ namespace In_Next_Week
 		if (m_ComputeShaderOutputDepthTextureID == 0)
 			m_ComputeShaderOutputDepthTextureID = Helper::TEXTURE_2D::Upload (nullptr, uint32_t (m_RTOutputResolution*m_AspectRatio), uint32_t (m_RTOutputResolution), GL_R32F, GL_RED, GL_FLOAT);
 		
-		glBindImageTexture (0, m_ComputeShaderOutputDepthTextureID, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F); // Depth
-		glBindImageTexture (1, m_ComputeShaderOutputColorTextureID, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F); // Color
+		glBindImageTexture (0, m_ComputeShaderOutputColorTextureID, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F); // Color
+		glBindImageTexture (1, m_ComputeShaderOutputDepthTextureID, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F); // Depth
 
 		if (m_GeometryBufferInputTextureID == 0) {
 			m_GeometryBufferInputTextureID = Helper::TEXTURE_2D::Upload (nullptr, sizeof (GeometryBuff)/sizeof (float[4]), m_GeometryBuff.size (), GL_RGBA32F, GL_RGBA, GL_FLOAT);
@@ -512,29 +514,6 @@ namespace In_Next_Week
 
 					for (uint32_t i = 0; i < m_NumberOfGeometriesToRender; i++)
 						m_GeometryData[i].last_position = m_GeometryData[i].position;
-					//{
-					//	std::stack<std::pair<LBVH::BVHNodeBuff *, uint32_t>> node_stack;
-					//	node_stack.push ({ &nodeBuff[0], 0 });
-					//	LOG_TRACE ("  TREE :");
-					//	while (!node_stack.empty ()) {
-					//		auto [curr, lvl] = node_stack.top ();
-					//		node_stack.pop ();
-					//		for (uint32_t i = 0; i < lvl; i++)
-					//			std::cout << "   ";
-					//		std::cout << "BB [{" << curr->bb_min[0] << ", " << curr->bb_min[1] << ", " << curr->bb_min[2] << "} {" << curr->bb_max[0] << ", " << curr->bb_max[1] << ", " << curr->bb_max[2] << "}]";
-					//		int left = int (curr->leftData + 0.1);
-					//		int right = int (curr->leftData + 1.1);
-					//		if (left <= 0)
-					//			std::cout << " obj: " << -curr->leftData;
-					//		std::cout << "\n";
-					//		if (left > 0) {
-					//			lvl++;
-					//			node_stack.push ({ &nodeBuff[left], lvl });
-					//			node_stack.push ({ &nodeBuff[right], lvl });
-					//		}
-					//	}
-					//	std::cout << "\n";
-					//}
 
 					delete[] nodeBuff;
 				}

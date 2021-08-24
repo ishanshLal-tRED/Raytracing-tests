@@ -42,7 +42,7 @@ namespace In_Next_Week
 		virtual bool OnImGuiRender () override
 		{
 			return
-				  ImGui::Combo ("Texture", &TextureIndex, AllTexturesStr.c_str())
+				  ImGui::Combo ("Texture", &TextureIndex, AllTexturesStr.data ())
 				| ImGui::SliderFloat2 ("Scatteritivity (OnRefract, OnReflect)", &Scatteritivity[0], 0.0f, 1.0f)
 				| ImGui::SliderFloat ("Reflectivity", &Reflectivity, 0.0f, 1.0f - Refractivity)
 				| ImGui::SliderFloat ("Refractivity", &Refractivity, 0.0f, 1.0f)
@@ -76,9 +76,22 @@ namespace In_Next_Week
 			if (temp) {
 				auto [a, b, c] = temp.value ();
 				AllTextures.push_back (a);
-				uint32_t temp = AllTexturesStr.size ();
-				AllTexturesStr += (' ' + std::filesystem::path (filePath).filename ().string ());
-				AllTexturesStr[temp] = '\0';
+				std::string name = std::filesystem::path (filePath).filename ().string ();
+				AllTexturesStr.insert(AllTexturesStr.end() - 1, '\0');
+				for (auto r_itr = name.begin (); r_itr != name.end (); r_itr++) {
+					AllTexturesStr.insert (AllTexturesStr.end () - 2, *r_itr);
+				}
+			}
+		}
+		static void AddTextureOption (GLuint textureID, const std::string &name)
+		{
+			LOG_ASSERT(textureID != 0 && name != std::string());
+			{
+				AllTextures.push_back (textureID);
+				AllTexturesStr.insert (AllTexturesStr.end () - 1, '\0');
+				for (auto r_itr = name.begin (); r_itr != name.end (); r_itr++) {
+					AllTexturesStr.insert (AllTexturesStr.end () - 2, *r_itr);
+				}
 			}
 		}
 		static void BindTextureOption ()
@@ -108,7 +121,7 @@ namespace In_Next_Week
 		glm::vec2 Scatteritivity = { 0,0 }; // OnRefract, OnReflect
 
 		static std::vector<GLuint> AllTextures;
-		static std::string AllTexturesStr; // Split By '\0' to directly be used for ImGui::Combo
+		static std::vector<char> AllTexturesStr; // Split By '\0' to directly be used for ImGui::Combo
 	};
 
 
@@ -130,6 +143,5 @@ namespace In_Next_Week
 		virtual void OnComputeShaderReload () override;
 
 		virtual bool FillBuffer (GLCore::Timestep) override;
-
 	};
 }

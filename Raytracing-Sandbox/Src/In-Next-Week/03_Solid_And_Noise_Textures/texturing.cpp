@@ -1,11 +1,12 @@
 ﻿#include "texturing.h"
 #include <GLCore/Core/KeyCodes.h>
+#include <fstream>
 #include <filesystem>
 
 namespace In_Next_Week
 {
 	std::vector<GLuint> GeometryData_03::AllTextures = std::vector<GLuint> ();
-	std::string GeometryData_03::AllTexturesStr = "None\0";
+	std::vector<char> GeometryData_03::AllTexturesStr = {'N', 'o', 'n', 'e', '\0', '\0'};
 	uint32_t num_of_textures = 0;
 
 	void Texturing::OnUpdate (GLCore::Timestep ts)
@@ -33,6 +34,31 @@ namespace In_Next_Week
 		if (first) {
 			first = false;
 			GeometryData_03::AddTextureOption ("assets/dice.png");
+
+			/*{
+				std::fstream file;
+				file.open ("assets/noise.ppm", std::ios::out);
+
+				uint16_t image_width = 600, image_height = 100;
+				file << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+
+				for (int j = image_height-1; j >= 0; --j) {
+					for (int i = 0; i < image_width; ++i) {
+						auto r = double (i) / (image_width-1);
+						auto g = double (j) / (image_height-1);
+						auto b = 0.25;
+
+						int ir = static_cast<int>(255.999 * r);
+						int ig = static_cast<int>(255.999 * g);
+						int ib = static_cast<int>(255.999 * b);
+
+						file << ir << ' ' << ig << ' ' << ib << '\n';
+					}
+				}
+				file.close ();
+
+				GeometryData_03::AddTextureOption ("assets/noise.ppm");
+			}*/
 		}
 
 		LOG_TRACE ("GeomBuffSize: {0}, SceneNodeSize: {1}", sizeof (GeometryBuff_03), sizeof (LBVH::BVHNodeBuff));
@@ -93,7 +119,55 @@ namespace In_Next_Week
 
 				ImGui::EndTabItem ();
 			}
-			if (ImGui::BeginTabItem (GLCore::ImGuiLayer::UniqueName ("Img"))) {
+			if (ImGui::BeginTabItem (GLCore::ImGuiLayer::UniqueName ("Additional Material settings"))) {
+				static GLuint display_texture = 0;
+				static int selected = 0;
+				ImGui::Text ("If you cannot see your uploaded texture here reselect from combo");
+				ImGui::Image ((void *)(display_texture), ImVec2 (ImGui::GetContentRegionAvailWidth (), ImGui::GetContentRegionAvailWidth () / 6));
+				if (ImGui::Combo ("already uploaded textures", &selected, GeometryData_03::AllTexturesStr.data ())) {
+					display_texture = GeometryData_03::AllTextures[selected - 1];
+				}
+				ImGui::Separator ();
+				static int selectedTYP = 0;
+					static float freq = 0.01f, lac = 2.5f, gain = 0.5f;
+					static int octaves = 5;
+					switch (selectedTYP) {
+						case 0: // simplex
+							ImGui::InputFloat ("Downscale", &freq);
+							break;
+						case 1: // FBM
+						case 2: // Turbulance
+							ImGui::InputFloat ("Frequency", &freq);
+							ImGui::SameLine ();
+							ImGui::InputFloat ("Lacunarity", &lac);
+							//ImGui::SameLine ();
+							ImGui::InputFloat ("Gain", &gain);
+							ImGui::SameLine ();
+							ImGui::InputInt ("Octaves", &octaves);
+							break;
+					}
+				ImGui::Combo ("TYPE", &selectedTYP, "Simplex Noise\0FRACTAL BROWNIM MOTION\0TURBULANCE\0"); ImGui::SameLine ();
+				if (ImGui::Button ("Add Another Texture")) {
+					GLuint texture = Helper::Noise::MakeTexture<glm::vec3> (600, 100, Helper::Noise::NOISE_TYP(selectedTYP), { glm::vec3 (0), glm::vec3 (1) }, freq, lac, gain, octaves);
+					std::string textureName;
+					switch (selectedTYP)
+					{
+					case 0: // simplex
+						textureName = "Simplex_Noise_" + std::to_string (texture);
+						GeometryData_03::AddTextureOption (texture, textureName);
+						break;
+					case 1: // FBM
+						textureName = "FBM2_" + std::to_string (texture);
+						GeometryData_03::AddTextureOption (texture, textureName);
+						break;
+					case 2: // Turbulance
+						textureName = "Turbulance_" + std::to_string (texture);
+						GeometryData_03::AddTextureOption (texture, textureName);
+						break;
+					}
+					display_texture = texture;
+					selected = GeometryData_03::AllTextures.size ();
+				}
 
 				ImGui::EndTabItem ();
 			}

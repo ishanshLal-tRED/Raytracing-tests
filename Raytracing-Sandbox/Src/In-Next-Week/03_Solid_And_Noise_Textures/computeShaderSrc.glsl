@@ -222,7 +222,7 @@ uniform struct
 	float Aperture;
 } u_Camera;
 
-#define u_NumOfTexture2D 1
+#define u_NumOfTexture2D 6
 layout(rgba32f, binding = 2) uniform sampler2D u_Texture2D[u_NumOfTexture2D];
 
 bool IntersectRay(Ray ray, float GeomIndex, inout Transform_Data final_transform, inout float t_limiting, inout vec3 normal_at_hit, inout float extraData){
@@ -346,11 +346,6 @@ bool IfInsideAABBAndLeaf_TryAccumulateRI(float NodeIndex, vec3 hitPoint, inout f
 	return true; // move Up the tree
 }
 
-
-// vec3 TextureColor(vec3 Normal, uint TextureIndex) { // Using normal to determine texture position, a shortcut.
-// 	return vec3(1);
-// }
-
 // Dosen't sets Normal though, Normal is set by IntersectRay() {because its faster that way}
 void FillHitMaterialData(vec3 LocalHitPosn, float Geom, inout Material data)
 {
@@ -411,9 +406,9 @@ void FillHitMaterialData(vec3 LocalHitPosn, float Geom, inout Material data)
 
 		// get color from texture, and multiply rbg(s) with data.Color
 		vec3 tex_color = texture(u_Texture2D[data.TextureIndex - 1], vec2(face*0.16666 + texCoord.x*0.16666, texCoord.y)).xyz;
-		data.Color.r /***/= tex_color.r;
-		data.Color.g /***/= tex_color.g;
-		data.Color.b /***/= tex_color.b;
+		data.Color.r *= tex_color.r;
+		data.Color.g *= tex_color.g;
+		data.Color.b *= tex_color.b;
 	}
 }
 

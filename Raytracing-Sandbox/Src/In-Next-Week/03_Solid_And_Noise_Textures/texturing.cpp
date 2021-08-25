@@ -27,14 +27,14 @@ namespace In_Next_Week
 	}
 	void Texturing::OnAttach ()
 	{
-		m_NumberOfGeometriesToRender = 2;
+		m_NumberOfGeometriesToRender = 1;
 
 		OnAttachBase ();
 		static bool first = true;
 		if (first) {
 			first = false;
 			GeometryData_03::AddTextureOption ("assets/dice.png");
-
+			GeometryData_03::AddTextureOption ("assets/earth.jpg", Helper::TEXTURE_2D::MAPPING::MERCATOR);
 			/*{
 				std::fstream file;
 				file.open ("assets/noise.ppm", std::ios::out);

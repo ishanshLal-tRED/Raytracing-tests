@@ -70,9 +70,12 @@ namespace In_Next_Week
 		}
 
 		// if Load From Disk Use GLCore::Utils::FileDialogs::OpenFile("Image\0*.jpeg\0*.png\0*.bmp\0*.hdr\0*.psd\0*.tga\0*.gif\0*.pic\0*.psd\0*.pgm\0").c_str () as input
-		static void AddTextureOption (const char *filePath = nullptr)
+		static void AddTextureOption (const char *filePath = nullptr, Helper::TEXTURE_2D::MAPPING loadAs = Helper::TEXTURE_2D::MAPPING::CUBIC)
 		{
-			auto temp = Helper::TEXTURE_2D::LoadFromDiskToGPU (filePath);
+			std::optional<std::tuple<GLuint, uint32_t, uint32_t>> temp;
+			if (loadAs != Helper::TEXTURE_2D::MAPPING::CUBIC)
+				temp = Helper::TEXTURE_2D::LoadFromDiskToGPU (filePath, loadAs, Helper::TEXTURE_2D::MAPPING::CUBIC);
+			else temp = Helper::TEXTURE_2D::LoadFromDiskToGPU (filePath);
 			if (temp) {
 				auto [a, b, c] = temp.value ();
 				AllTextures.push_back (a);

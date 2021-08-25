@@ -24,11 +24,17 @@ namespace Helper
 	}
 	namespace TEXTURE_2D
 	{
+		enum class MAPPING
+		{
+			CUBIC = 0,
+			MERCATOR
+		};
 		void SetData (GLuint ID, uint32_t width, uint32_t height, GLenum src_format, GLenum src_type, const void *data, uint8_t level);
 		GLuint Upload (const uint8_t *data, uint32_t width, uint32_t height, uint8_t channels);
 		GLuint Upload (const void *data, uint32_t width, uint32_t height, GLenum internal_format, GLenum src_format, GLenum src_type, GLenum min_filter = GL_NEAREST, GLenum mag_filter = GL_NEAREST);
 		std::optional<std::tuple<GLuint, uint32_t, uint32_t>> LoadFromDiskToGPU ();
 		std::optional<std::tuple<GLuint, uint32_t, uint32_t>> LoadFromDiskToGPU (const char *location);
+		std::optional<std::tuple<GLuint, uint32_t, uint32_t>> LoadFromDiskToGPU (const char *location, const MAPPING loadAs, const MAPPING storeAs);
 	}
 	namespace MATH
 	{

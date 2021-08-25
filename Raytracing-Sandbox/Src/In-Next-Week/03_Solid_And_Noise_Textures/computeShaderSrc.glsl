@@ -381,25 +381,25 @@ void FillHitMaterialData(vec3 LocalHitPosn, float Geom, inout Material data)
 		LocalHitPosn /= dot(LocalHitPosn, faceDirn);
 		LocalHitPosn *= 0.5; // (-1, 1) -> (-0.5, 0.5)
 		LocalHitPosn += vec3(0.5); // (-0.5, 0.5) -> (0, 1)
-		// find transition, +y(x, invert(z)) -> +x(invert(y), invert(z)) -> +z(invert(y), x) -> -x(invert(y), z) -> -z(invert(y), invert(x)) -> -y(z, invert(x))
+		// find transition, +y(x, invert(z)) -> +x(invert(y), invert(z)) -> +z(x, y) -> -x(z, y) -> -z(invert(y), invert(x)) -> -y(z, invert(x)) // made to to look better
 		vec2 texCoord;
 		switch(face){
 			case 0:
 				texCoord = vec2(LocalHitPosn.x, 1.0 - LocalHitPosn.z);
-				break;
-			case 1:
+				break;	   
+			case 1:		   
 				texCoord = vec2(1.0 - LocalHitPosn.y, 1.0 - LocalHitPosn.z);
-				break;
-			case 2:
-				texCoord = vec2(1.0 - LocalHitPosn.y, LocalHitPosn.x);
-				break;
-			case 3:
-				texCoord = vec2(1.0 - LocalHitPosn.y, LocalHitPosn.z);
-				break;
-			case 4:
+				break;	   
+			case 2:		   
+				texCoord = vec2(LocalHitPosn.x, LocalHitPosn.y);
+				break;	   
+			case 3:		   
+				texCoord = vec2(LocalHitPosn.z, LocalHitPosn.y);
+				break;	   
+			case 4:		   
 				texCoord = vec2(1.0 - LocalHitPosn.y, 1.0 - LocalHitPosn.x);
-				break;
-			case 5:
+				break;	   
+			case 5:		   
 				texCoord = vec2(LocalHitPosn.z, 1.0 - LocalHitPosn.x);
 				break;
 		}

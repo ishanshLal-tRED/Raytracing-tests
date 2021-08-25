@@ -3,6 +3,7 @@
 #include <GLCoreUtils.h>
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include <array>
 #include <vector>
 #include <stb_image/stb_image.h>
@@ -219,11 +220,12 @@ namespace Helper
 		stbi_set_flip_vertically_on_load (1);
 		texData = stbi_load (GLCore::Utils::FileDialogs::OpenFile("Image\0*.jpeg\0*.png\0*.bmp\0*.hdr\0*.psd\0*.tga\0*.gif\0*.pic\0*.psd\0*.pgm\0").c_str (), &width, &height, &channels, 0);
 		if (!texData) {
-			LOG_ASSERT (texData, "Failed to load Image");
+			LOG_ERROR ("Failed to load Image");
 			return {};
 		}
 
 		GLuint textureID = Upload (texData, (uint32_t)width, (uint32_t)height, channels);
+		delete[] texData;
 		if (textureID > 0)
 		{
 			return { {textureID, (uint32_t)width, (uint32_t)height} };
@@ -241,6 +243,228 @@ namespace Helper
 		}
 
 		GLuint textureID = Upload (texData, (uint32_t)width, (uint32_t)height, channels);
+		delete[] texData;
+		if (textureID > 0) {
+			return { {textureID, (uint32_t)width, (uint32_t)height} };
+		} else {
+			return {};
+		}
+	}
+	std::optional<std::tuple<GLuint, glm::uint32_t, glm::uint32_t>> TEXTURE_2D::LoadFromDiskToGPU (const char *location, const MAPPING loadAs, const MAPPING mapTo)
+	{
+		stbi_uc *texData; int width, height, channels;
+		stbi_set_flip_vertically_on_load (1);
+		texData = stbi_load (location, &width, &height, &channels, 0);
+		if (!texData)
+		{
+			texData = stbi_load (GLCore::Utils::FileDialogs::OpenFile ("Image\0*.jpeg\0*.png\0*.bmp\0*.hdr\0*.psd\0*.tga\0*.gif\0*.pic\0*.psd\0*.pgm\0").c_str (), &width, &height, &channels, 0);
+			if (!texData) {
+				LOG_ERROR ("Failed to load Image");
+				return {};
+			}
+		}
+		
+		if (loadAs != mapTo) {
+			// NOTE: I'm using float for lerp-ing and transforming data from one projection to another, also in order to minimize dynamic allocation an already created container is to be used
+			stbi_uc *newTexData = new stbi_uc[width * height * channels];
+			
+			/*FOR MERCATOR scale u, v ∈ [0 1]; u goes from -Y to +Y, v goes from -X to +Z to +X to -Z back to -X*/
+			/*FOR CUBIC scale x = face + _x; _x, y ∈ [0 1]; face: [+y = 0, +x, +z, -x, -z, -y]*/
+			auto pixelLoad  = [&](float _x, float _y, float* cantainer) {
+				uint32_t X = _x*width;
+				uint32_t Y = _y*height;
+				uint32_t index = X + Y*width;
+				LOG_ASSERT (X < width && Y < height);
+				for (uint32_t i = 0; i < channels; i++)
+				{
+					cantainer[i] = float (texData[index*channels + i])/255;
+				}
+			};
+
+			auto pixelStore = [&](float _x, float _y, float *cantainer) {
+				uint32_t X = _x*width;
+				uint32_t Y = _y*height;
+				uint32_t index = X + Y*width;
+				LOG_ASSERT (X < width &&Y < height);
+				for (uint32_t i = 0; i < channels; i++) {
+					newTexData[index*channels + i] = (cantainer[i]*255.9999);
+				}
+			};
+			
+			constexpr uint32_t NumOfThreads = 4;
+			if (loadAs == MAPPING::MERCATOR && mapTo == MAPPING::CUBIC) {
+				auto XYtoUVCoord = [](const float X, const float Y, float &U, float &V) {
+					float x = X - int(X);
+					glm::vec3 front;
+					switch (int (X)) {
+						case 0:// +y
+						// texCoord = vec2 (front.x, 1.0 - front.z);
+							front.x = x, front.z = 1.0 - Y;
+							front.y = 1.0;
+							break;
+						case 1:// +x
+						// texCoord = vec2 (1.0 - front.y, 1.0 - front.z);
+							front.y = 1.0 - x, front.z = 1.0 - Y;
+							front.x = 1.0;
+							break;
+						case 2:// +z
+						// texCoord = vec2 (front.x, front.y); 
+							front.x = x, front.y = Y;
+							front.z = 1.0;
+							break;
+						case 3:// -x
+						// texCoord = vec2 (front.z, front.y);
+							front.z = x, front.y = Y;
+							front.x = 0.0;
+							break;
+						case 4:// -z
+						// texCoord = vec2 (1.0 - front.y, 1.0 - front.x);
+							front.y = 1.0 - x, front.x = 1.0 - Y;
+							front.z = 0.0;
+							break;
+						case 5:// -y
+						// texCoord = vec2 (front.z, 1.0 - front.x);
+							front.z = x, front.x = 1.0 - Y;
+							front.y = 0.0;
+							break;
+						default:
+							LOG_ASSERT (false);
+					}
+					front -= glm::vec3 (0.5f);
+					front = glm::normalize (front); // multiplying vector doesn't makes a difference
+
+					V = acosf (-front.y)/glm::pi<float> (), U = atan2f (front.z, front.x)/float(2*glm::pi<double> ());
+					if (U < 0) {
+						U += 1.0; // (-0.5 0] -> (0.5 1.0]
+					}
+				};
+				auto MercatorToCubic = [&](const uint32_t batch_num) {
+					const uint32_t total_batches = NumOfThreads;
+
+					uint32_t wid_x = width/total_batches + 1;
+					const uint32_t offset = batch_num*wid_x;
+					if (batch_num == total_batches-1)
+						wid_x -= (total_batches*wid_x) % width;
+
+					float *cantainer = new float[channels];
+					for (uint32_t posY = 0; posY < height; posY++) {
+						float y = double (posY)/height;
+						for (uint32_t posX = 0; posX < wid_x; posX++) {
+							float x = double (6*(posX + offset))/width;
+							//LOG_ASSERT (MOD(y, 1.0f) < 0.75);
+							float U, V;
+							XYtoUVCoord (x, y, U, V);
+							x /= 6.0;
+							pixelLoad (U, V, cantainer);
+							pixelStore (x, y, cantainer);
+						}
+					}
+					return 0;
+				};
+				std::vector<std::future<int>> futures;
+				futures.resize (NumOfThreads);
+
+				for (uint32_t i = 0; i < NumOfThreads; i++)
+				{
+					futures[i] = std::async (MercatorToCubic, i);
+				}
+
+				for (auto &ifuture : futures)
+				{
+					int tmp = ifuture.get ();
+				}
+			} else if (loadAs == MAPPING::CUBIC && mapTo == MAPPING::MERCATOR) {
+				//auto UVtoXYCoord = [](const float U, const float V, float &X, float &Y) {
+				//	float pitch = glm::radians (U*180 - 90);
+				//	float yaw = glm::radians (V*360);
+				//	glm::vec3 front;
+				//	front.x = cos (yaw) * cos (pitch);
+				//	front.y = sin (pitch);
+				//	front.z = sin (yaw) * cos (pitch);
+
+				//	float max = front[0];
+				//	uint32_t face = max > 0 ? 1 : 3; // +y = 0, +x = 1, +z = 2, -x = 3, -z = 4, -y = 5
+				//	glm::vec3 faceDirn = glm::vec3 (1, 0, 0); 
+				//	faceDirn *= (max > 0 ? 1 : -1);
+
+				//	for (uint32_t i = 1; i < 3; i++) {
+				//		if (abs (max) < abs (front[i])) {
+				//			max = front[i];
+				//			face = max > 0 ? (i == 1 ? 0 : 2) : (i == 1 ? 5 : 4);
+				//			// max > 0 -> +y & +z, if i = 1 i.e +y == 0 orif i = 2 i.e +z == 2; 
+				//			//		  !-> -y & -z, if i = 1 i.e -y == 5 orif i = 2 i.e -z == 4;
+
+				//			faceDirn = glm::vec3 (int (i == 0), int (i == 1), int (i == 2)); 
+				//			faceDirn *= (max > 0 ? 1 : -1);
+				//		}
+				//	}
+
+				//	front /= glm::dot (front, faceDirn);
+				//	front *= 0.5; // (-1, 1) -> (-0.5, 0.5)
+				//	front += glm::vec3 (0.5); // (-0.5, 0.5) -> (0, 1)
+				//	// find transition, +y(x, invert(z)) -> +x(invert(y), invert(z)) -> +z(invert(y), x) -> -x(invert(y), z) -> -z(invert(y), invert(x)) -> -y(z, invert(x))
+
+				//	glm::vec2 texCoord;
+				//	switch (face) {
+				//		case 0: texCoord = glm::vec2 (front.x, 1.0 - front.z);
+				//			break;
+				//		case 1: texCoord = glm::vec2 (1.0 - front.y, 1.0 - front.z);
+				//			break;
+				//		case 2: texCoord = glm::vec2 (front.x, front.y);
+				//			break;
+				//		case 3: texCoord = glm::vec2 (front.z, front.y);
+				//			break;
+				//		case 4: texCoord = glm::vec2 (1.0 - front.y, 1.0 - front.x);
+				//			break;
+				//		case 5: texCoord = glm::vec2 (front.z, 1.0 - front.x);
+				//			break;
+				//	}
+
+				//	X = face + texCoord.x, Y = texCoord.y;
+				//};
+				//auto CubicToMercator = [&](uint32_t batch_num) {
+				//	// strips
+				//	const uint32_t total_batches = NumOfThreads;
+
+				//	uint32_t wid_x = width/total_batches + 1;
+				//	const uint32_t offset = batch_num*wid_x;
+				//	if (batch_num == total_batches-1)
+				//		wid_x -= (total_batches*wid_x) % width;
+
+				//	float *cantainer = new float[channels];
+				//	for (uint32_t posY = 0; posY < height; posY++) {
+				//		float V = double (posY)/width;
+				//		for (uint32_t posX = 0; posX < wid_x; posX++) {
+				//			float U = double (posX + offset)/width;
+				//			float x, y;
+				//			UVtoXYCoord (U, V, x, y);
+				//			pixelLoad (U, V, cantainer);
+				//			pixelStore (x/6, y, cantainer);
+				//		}
+				//	}
+				//	return 0;
+				//};
+
+				//std::vector<std::future<int>> futures;
+				//futures.resize (NumOfThreads);
+
+				//for (uint32_t i = 0; i < NumOfThreads; i++) {
+				//	futures[i] = std::async (CubicToMercator, i);
+				//}
+
+				//for (auto &ifuture : futures) {
+				//	int tmp = ifuture.get ();
+				//}
+			} else {
+				LOG_ERROR ("loadAs = {0}, storeAs = {1}", int (loadAs), int (mapTo));
+				LOG_ASSERT (false, "loadAs and storeAs pair re-mapping not supported");
+			}
+
+			delete[] texData;
+			texData = newTexData;
+		}
+		GLuint textureID = Upload (texData, (uint32_t)width, (uint32_t)height, channels);
+		delete[] texData;
 		if (textureID > 0) {
 			return { {textureID, (uint32_t)width, (uint32_t)height} };
 		} else {

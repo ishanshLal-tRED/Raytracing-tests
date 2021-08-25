@@ -40,10 +40,11 @@ In-Next-Week/
 	00_MotionBlur
 	01_BoundingVolumeHierarchy (LBVH to be exact(not GPU but CPU based), NOTE: reflections are not good due to motion blurring not beacause of bug, I always confuse In spelling of heirarchy, code needs very-good amount of cleanup)
   // SWITCHING PRIORITIES, NOW GOAL IS TO FINISH THIS AS SOON AS POSSIBLE INSTEAD OF MAKINg IT LOOK GOOD (17.08.2021) {also the reason why i'm not switching to SSBO instead of texture for buffer}. 
-    03_Texturing ([⩗]texture loading from disk, [⩗]noise texture, [.]mercator(or whatever) texture -> cubic texture).
+    03_Texturing ([⩗]texture loading from disk, [⩗]noise texture, [⩗]mercator texture <-> cubic texture).
 	NOTE: There are problems (naming needs to change too), Bug#1: LBVH somtimes not-correctly constructed (even though its a serious bug, i'm gonna ignore it beacause of priorities)
 		Bug#2: My Compute Shader (GPU) can atmost have 8 Texture Units so uploding index 5(6th) is the limit, and theres no assertion (just me being lazy). (this should be improved)
-		Bug#3(feature though): shader src manipulation for increasing number of texture slots at runtime (via imgui::inputint).
+		Bug#3(feature though): shader src manipulation for increasing number of texture slots at runtime (via imgui::inputint).\
+[Lazy bug fixing left]
 ```
 
 # 2. How to use

@@ -274,7 +274,12 @@ namespace Helper
 				uint32_t X = _x*width;
 				uint32_t Y = _y*height;
 				uint32_t index = X + Y*width;
-				LOG_ASSERT (X < width && Y < height);
+			#if MODE_DEBUG
+				if (X >= width || Y >= height) {
+					LOG_WARN ("(X >= width || Y >= height) with X = {0}, Y = {1}", X, Y);
+					LOG_ASSERT (X == width && Y == height);
+				}
+			#endif
 				for (uint32_t i = 0; i < channels; i++)
 				{
 					cantainer[i] = float (texData[index*channels + i])/255;
@@ -285,7 +290,12 @@ namespace Helper
 				uint32_t X = _x*width;
 				uint32_t Y = _y*height;
 				uint32_t index = X + Y*width;
-				LOG_ASSERT (X < width &&Y < height);
+			#if MODE_DEBUG
+				if (X >= width || Y >= height) {
+					LOG_WARN ("(X >= width || Y >= height) with X = {0}, Y = {1}", X, Y);
+					LOG_ASSERT (X <= width && Y <= height);
+				}
+			#endif
 				for (uint32_t i = 0; i < channels; i++) {
 					newTexData[index*channels + i] = (cantainer[i]*255.9999);
 				}
@@ -359,6 +369,7 @@ namespace Helper
 							pixelStore (x, y, cantainer);
 						}
 					}
+					delete[] cantainer;
 					return 0;
 				};
 				std::vector<std::future<int>> futures;
@@ -374,87 +385,90 @@ namespace Helper
 					int tmp = ifuture.get ();
 				}
 			} else if (loadAs == MAPPING::CUBIC && mapTo == MAPPING::MERCATOR) {
-				//auto UVtoXYCoord = [](const float U, const float V, float &X, float &Y) {
-				//	float pitch = glm::radians (U*180 - 90);
-				//	float yaw = glm::radians (V*360);
-				//	glm::vec3 front;
-				//	front.x = cos (yaw) * cos (pitch);
-				//	front.y = sin (pitch);
-				//	front.z = sin (yaw) * cos (pitch);
+				auto UVtoXYCoord = [](float U, float V, float &X, float &Y) {
+					float pitch = glm::radians (V*180.0f - 90);
+					float yaw = glm::radians (U*360.0f);
+					glm::vec3 front;
+					front.x = cos (yaw) * cos (pitch);
+					front.y = sin (pitch);
+					front.z = sin (yaw) * cos (pitch);
 
-				//	float max = front[0];
-				//	uint32_t face = max > 0 ? 1 : 3; // +y = 0, +x = 1, +z = 2, -x = 3, -z = 4, -y = 5
-				//	glm::vec3 faceDirn = glm::vec3 (1, 0, 0); 
-				//	faceDirn *= (max > 0 ? 1 : -1);
+					
+					float max = front[0];
+					uint32_t face = max > 0 ? 1 : 3; // +y = 0, +x = 1, +z = 2, -x = 3, -z = 4, -y = 5
+					glm::vec3 faceDirn = glm::vec3 (1, 0, 0); 
+					faceDirn *= (max > 0 ? 1 : -1);
 
-				//	for (uint32_t i = 1; i < 3; i++) {
-				//		if (abs (max) < abs (front[i])) {
-				//			max = front[i];
-				//			face = max > 0 ? (i == 1 ? 0 : 2) : (i == 1 ? 5 : 4);
-				//			// max > 0 -> +y & +z, if i = 1 i.e +y == 0 orif i = 2 i.e +z == 2; 
-				//			//		  !-> -y & -z, if i = 1 i.e -y == 5 orif i = 2 i.e -z == 4;
+					for (uint32_t i = 1; i < 3; i++) {
+						if (abs (max) < abs (front[i])) {
+							max = front[i];
+							face = max > 0 ? (i == 1 ? 0 : 2) : (i == 1 ? 5 : 4);
+							// max > 0 -> +y & +z, if i = 1 i.e +y == 0 orif i = 2 i.e +z == 2; 
+							//		  !-> -y & -z, if i = 1 i.e -y == 5 orif i = 2 i.e -z == 4;
 
-				//			faceDirn = glm::vec3 (int (i == 0), int (i == 1), int (i == 2)); 
-				//			faceDirn *= (max > 0 ? 1 : -1);
-				//		}
-				//	}
+							faceDirn = glm::vec3 (0, int (i == 1), int (i == 2)); 
+							faceDirn *= (max > 0 ? 1 : -1);
+						}
+					}
 
-				//	front /= glm::dot (front, faceDirn);
-				//	front *= 0.5; // (-1, 1) -> (-0.5, 0.5)
-				//	front += glm::vec3 (0.5); // (-0.5, 0.5) -> (0, 1)
-				//	// find transition, +y(x, invert(z)) -> +x(invert(y), invert(z)) -> +z(invert(y), x) -> -x(invert(y), z) -> -z(invert(y), invert(x)) -> -y(z, invert(x))
+					front /= glm::dot (front, faceDirn);
+					front *= 0.5; // (-1, 1) -> (-0.5, 0.5)
+					front += glm::vec3 (0.5); // (-0.5, 0.5) -> (0, 1)
+					// find transition, +y(x, invert(z)) -> +x(invert(y), invert(z)) -> +z(invert(y), x) -> -x(invert(y), z) -> -z(invert(y), invert(x)) -> -y(z, invert(x))
 
-				//	glm::vec2 texCoord;
-				//	switch (face) {
-				//		case 0: texCoord = glm::vec2 (front.x, 1.0 - front.z);
-				//			break;
-				//		case 1: texCoord = glm::vec2 (1.0 - front.y, 1.0 - front.z);
-				//			break;
-				//		case 2: texCoord = glm::vec2 (front.x, front.y);
-				//			break;
-				//		case 3: texCoord = glm::vec2 (front.z, front.y);
-				//			break;
-				//		case 4: texCoord = glm::vec2 (1.0 - front.y, 1.0 - front.x);
-				//			break;
-				//		case 5: texCoord = glm::vec2 (front.z, 1.0 - front.x);
-				//			break;
-				//	}
+					glm::vec2 texCoord;
+					switch (face) {
+						case 0: texCoord = glm::vec2 (front.x, 1.0 - front.z);
+							break;
+						case 1: texCoord = glm::vec2 (1.0 - front.y, 1.0 - front.z);
+							break;
+						case 2: texCoord = glm::vec2 (front.x, front.y);
+							break;
+						case 3: texCoord = glm::vec2 (front.z, front.y);
+							break;
+						case 4: texCoord = glm::vec2 (1.0 - front.y, 1.0 - front.x);
+							break;
+						case 5: texCoord = glm::vec2 (front.z, 1.0 - front.x);
+							break;
+					}
 
-				//	X = face + texCoord.x, Y = texCoord.y;
-				//};
-				//auto CubicToMercator = [&](uint32_t batch_num) {
-				//	// strips
-				//	const uint32_t total_batches = NumOfThreads;
+					X = face + texCoord.x, Y = texCoord.y;
+				};
+				auto CubicToMercator = [&](uint32_t batch_num) {
+					// strips
+					const uint32_t total_batches = NumOfThreads;
 
-				//	uint32_t wid_x = width/total_batches + 1;
-				//	const uint32_t offset = batch_num*wid_x;
-				//	if (batch_num == total_batches-1)
-				//		wid_x -= (total_batches*wid_x) % width;
+					uint32_t wid_x = width/total_batches + 1;
+					const uint32_t offset = batch_num*wid_x;
+					if (batch_num == total_batches - 1)
+						wid_x -= (total_batches*wid_x) % width;
 
-				//	float *cantainer = new float[channels];
-				//	for (uint32_t posY = 0; posY < height; posY++) {
-				//		float V = double (posY)/width;
-				//		for (uint32_t posX = 0; posX < wid_x; posX++) {
-				//			float U = double (posX + offset)/width;
-				//			float x, y;
-				//			UVtoXYCoord (U, V, x, y);
-				//			pixelLoad (U, V, cantainer);
-				//			pixelStore (x/6, y, cantainer);
-				//		}
-				//	}
-				//	return 0;
-				//};
+					float *cantainer = new float[channels];
+					for (uint32_t posY = 0; posY < height; posY++) {
+						float V = float (posY)/height;
+						for (uint32_t posX = 0; posX < wid_x; posX++) {
+							float U = float (posX + offset)/width;
+							float x, y;
+							UVtoXYCoord (U, V, x, y);
+							x /= 6;
+							pixelLoad (x, y, cantainer);
+							pixelStore (U, V, cantainer);
+						}
+					}
+					delete[] cantainer;
+					return 0;
+				};
 
-				//std::vector<std::future<int>> futures;
-				//futures.resize (NumOfThreads);
+				std::vector<std::future<int>> futures;
+				futures.resize (NumOfThreads);
 
-				//for (uint32_t i = 0; i < NumOfThreads; i++) {
-				//	futures[i] = std::async (CubicToMercator, i);
-				//}
+				for (uint32_t i = 0; i < NumOfThreads; i++) {
+					futures[i] = std::async (CubicToMercator, i);
+				}
 
-				//for (auto &ifuture : futures) {
-				//	int tmp = ifuture.get ();
-				//}
+				for (auto &ifuture : futures) {
+					int tmp = ifuture.get ();
+				}
 			} else {
 				LOG_ERROR ("loadAs = {0}, storeAs = {1}", int (loadAs), int (mapTo));
 				LOG_ASSERT (false, "loadAs and storeAs pair re-mapping not supported");

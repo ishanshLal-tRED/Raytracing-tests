@@ -70,7 +70,7 @@ namespace In_Next_Week
 		}
 
 		// if Load From Disk Use GLCore::Utils::FileDialogs::OpenFile("Image\0*.jpeg\0*.png\0*.bmp\0*.hdr\0*.psd\0*.tga\0*.gif\0*.pic\0*.psd\0*.pgm\0").c_str () as input
-		static void AddTextureOption (const char *filePath = nullptr, Helper::TEXTURE_2D::MAPPING loadAs = Helper::TEXTURE_2D::MAPPING::CUBIC)
+		static GLuint AddTextureOption (const char *filePath = nullptr, Helper::TEXTURE_2D::MAPPING loadAs = Helper::TEXTURE_2D::MAPPING::CUBIC)
 		{
 			std::optional<std::tuple<GLuint, uint32_t, uint32_t>> temp;
 			if (loadAs != Helper::TEXTURE_2D::MAPPING::CUBIC)
@@ -84,7 +84,9 @@ namespace In_Next_Week
 				for (auto r_itr = name.begin (); r_itr != name.end (); r_itr++) {
 					AllTexturesStr.insert (AllTexturesStr.end () - 2, *r_itr);
 				}
+				return a;
 			}
+			return 0;
 		}
 		static void AddTextureOption (GLuint textureID, const std::string &name)
 		{

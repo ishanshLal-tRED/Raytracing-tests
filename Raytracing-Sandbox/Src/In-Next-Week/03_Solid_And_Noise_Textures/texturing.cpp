@@ -34,7 +34,6 @@ namespace In_Next_Week
 		if (first) {
 			first = false;
 			GeometryData_03::AddTextureOption ("assets/dice.png");
-			GeometryData_03::AddTextureOption ("assets/earth.jpg", Helper::TEXTURE_2D::MAPPING::MERCATOR);
 			/*{
 				std::fstream file;
 				file.open ("assets/noise.ppm", std::ios::out);
@@ -123,7 +122,7 @@ namespace In_Next_Week
 				static GLuint display_texture = 0;
 				static int selected = 0;
 				ImGui::Text ("If you cannot see your uploaded texture here reselect from combo");
-				ImGui::Image ((void *)(display_texture), ImVec2 (ImGui::GetContentRegionAvailWidth (), ImGui::GetContentRegionAvailWidth () / 6));
+				ImGui::Image ((void *)(display_texture), ImVec2 (ImGui::GetContentRegionAvailWidth (), ImGui::GetContentRegionAvailWidth () / 4), ImVec2{ 0, 1 }, ImVec2{ 1, 0 });
 				if (ImGui::Combo ("already uploaded textures", &selected, GeometryData_03::AllTexturesStr.data ())) {
 					display_texture = GeometryData_03::AllTextures[selected - 1];
 				}
@@ -167,6 +166,19 @@ namespace In_Next_Week
 					}
 					display_texture = texture;
 					selected = GeometryData_03::AllTextures.size ();
+				}
+				ImGui::Separator ();
+				static int imprtFrmt = 0;
+				if (ImGui::Button ("Add From Disk")) {
+					display_texture = GeometryData_03::AddTextureOption (GLCore::Utils::FileDialogs::OpenFile ("Image\0*.jpeg\0*.png\0*.bmp\0*.hdr\0*.psd\0*.tga\0*.gif\0*.pic\0*.psd\0*.pgm\0").c_str (), Helper::TEXTURE_2D::MAPPING (imprtFrmt));
+					selected = GeometryData_03::AllTextures.size ();
+				}
+				ImGui::Combo ("Import Mapping Format", &imprtFrmt, "Cubic Projection\0Mercator Projection\0");
+				if (ImGui::IsItemActivated() || ImGui::IsItemHovered ())
+				{
+					ImGui::BeginTooltip ();
+					ImGui::TextUnformatted ("FOR MERCATOR: u, v coordinates ∈ [0 1] where u goes from -Y to +Y & v goes from -X to +Z to +X to -Z back to -X\nFOR CUBIC(custom format): x = face + _x; _x, y ∈ [0 1] where face: [+Y -> +X -> +Z -> -X -> -Z -> -Y]");
+					ImGui::EndTooltip ();
 				}
 
 				ImGui::EndTabItem ();

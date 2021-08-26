@@ -8,6 +8,7 @@
 #include "LBVH/LBVH.h"
 namespace In_Next_Week
 {
+
 	struct Transform_Buff // Note: no methods, pointers. This data will be directly send to GPU
 	{
 		float Position[3];
@@ -99,6 +100,60 @@ namespace In_Next_Week
 		
 		void OnComputeShaderReloadBase ();
 		virtual bool FillBuffer (GLCore::Timestep) = 0;
+
+		static bool FindAndSetStr (ComputeAndSqrShader_Base::Buffer &buff, std::vector<std::string> strings, std::string data /*Use std::to_string to pass val*/)
+		{
+			uint32_t posn = 0;
+			LOG_ASSERT (!strings.empty ());
+			char startChar = strings[0][0];
+			const char *shader_src = buff.data ();
+			while (posn < buff.size ()) {
+				while (shader_src[posn] != startChar)
+					posn++;
+
+				bool OuterContinue = false;
+				for (uint32_t i = 0; i < strings.size (); i++) {
+					uint32_t offset = 0;
+					while (shader_src[posn + offset] == (strings[i])[offset] && offset < strings[i].size ())
+						offset++;
+					posn += offset;
+					if (offset != strings[i].size ()) {
+						OuterContinue = true;
+						break;
+					}
+
+					while (shader_src[posn] == ' ')
+						posn++;
+				}
+				if (OuterContinue) continue;
+
+				uint32_t record = posn;
+				while (shader_src[posn] != ' ' && shader_src[posn] != '\n' && shader_src[posn] != '\t' && shader_src[posn] != '\r')
+					posn++;
+				while (shader_src[posn] == ' ')
+					posn++;
+
+				if (shader_src[posn] != '\n' && shader_src[posn] != '\t' && shader_src[posn] != '\r')
+					posn--;
+				// posn--; 
+					 
+				uint32_t offset = posn - record; // + 1;
+				if (offset < data.size ()) // resize
+				{
+					buff.resize (buff.size () + (data.size () - offset), record, (data.size () - offset));
+					offset = data.size ();
+				}
+				auto raw_shader_src = buff.raw_data ();
+				for (uint32_t i = 0; i < offset; i++) {
+					if (i < data.size ())
+						raw_shader_src[record + i] = data[i];
+					else raw_shader_src[record + i] = ' ';
+				}
+
+				return true;
+			}
+			return false;
+		}
 	protected:
 		bool m_RedrawFrame = true;
 
@@ -320,42 +375,15 @@ namespace In_Next_Week
 			m_RedrawFrame |= ImGui::DragFloat ("Aperture", &m_Camera.Aperture, 0.1f, 0.0f, 10.0f);
 			if (ImGui::InputInt ("Number Of Focus Point", &m_Camera.NumberOfFocusDist, 1, 2)) {
 				if (m_Camera.NumberOfFocusDist > 0 && m_Camera.NumberOfFocusDist < 10) {
-					uint32_t posn = 0;
-					char *shader_src = m_ComputeShaderTXT.raw_data ();
-					while (posn < m_ComputeShaderTXT.size ()) {
-						while (shader_src[posn] != '#')
-							posn++;
 
-						uint32_t offset = 0;
-						while (shader_src[posn + offset] == ("#define")[offset] && offset < strlen ("#define"))
-							offset++;
-
-						posn += offset;
-						if (offset != strlen ("#define"))
-							continue;
-
-						while (shader_src[posn] == ' ')
-							posn++;
-
-
-						while (shader_src[posn + offset] == ("u_NumOfFocusDist")[offset] && offset < strlen ("u_NumOfFocusDist"))
-							offset++;
-						posn += offset;
-						if (offset != strlen ("u_NumOfFocusDist"))
-							continue;
-
-						while (shader_src[posn] == ' ')
-							posn++;
-
-						shader_src[posn] = '0' + m_Camera.NumberOfFocusDist;
-
-
+					if(FindAndSetStr (m_ComputeShaderTXT, { "#define", "u_NumOfFocusDist" }, std::to_string(m_Camera.NumberOfFocusDist))){
 						m_RedrawFrame = true;
 						ReloadComputeShader ();
-						break;
-					}
-					m_Camera.FocusDists.resize (m_Camera.NumberOfFocusDist);
+					} else m_Camera.NumberOfFocusDist = m_Camera.FocusDists.size ();
 				} else m_Camera.NumberOfFocusDist = MIN (9, MAX (1, m_Camera.NumberOfFocusDist));
+				
+				if(m_Camera.NumberOfFocusDist != m_Camera.FocusDists.size())
+					m_Camera.FocusDists.resize (m_Camera.NumberOfFocusDist);
 			}
 			for (uint32_t i = 0; i < m_Camera.NumberOfFocusDist; i++)
 			{
@@ -368,11 +396,21 @@ namespace In_Next_Week
 			ImGui::Separator ();
 			ImGui::Unindent ();
 		}
-
+		
+		
+	#if 0
 		if (ImGui::InputInt ("Number Of Geometries To Render", &m_NumberOfGeometriesToRender)) {
 			m_RedrawFrame = true;
 			m_NumberOfGeometriesToRender = MAX (1, m_NumberOfGeometriesToRender);
 		}
+	#else
+		ImGui::Text ("Number Of Geometries To Render: %d", m_NumberOfGeometriesToRender);
+		if (ImGui::IsItemHovered ()) {
+			ImGui::BeginTooltip ();
+			ImGui::TextUnformatted ("This program supports variable number of geometries \nhowever due to Slight inconsistancy between GeometryData.size() before and after \ni'm disabling it all-together, manually change number of ObjectCount to render in Test::OnAttach()");
+			ImGui::EndTooltip ();
+		}
+	#endif
 		
 		if (ImGui::CollapsingHeader ("Objects:")) {
 			ImGui::Indent ();

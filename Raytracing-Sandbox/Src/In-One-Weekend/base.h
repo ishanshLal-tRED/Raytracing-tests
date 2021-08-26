@@ -169,12 +169,20 @@ protected:
 			_data = new char[size];
 			_data[0] = '\0';
 		}
-		void resize (uint32_t new_size)
+		void resize (uint32_t new_size, uint32_t insert_gap_at = 0, uint32_t gap_size = 0)
 		{
 			new_size++; // 1-more
 			if (new_size > _size) {
 				char *data = new char[new_size];
-				memcpy_s (data, new_size, _data, _size);
+
+				if (insert_gap_at > 0 && gap_size > 0 && insert_gap_at + gap_size < new_size)
+				{
+					memcpy_s (data + insert_gap_at + gap_size, new_size - insert_gap_at - gap_size, _data + insert_gap_at, _size - insert_gap_at);
+					memcpy_s (data, new_size, _data, insert_gap_at);
+					for (uint32_t i = 0; i < gap_size; i++)
+						data[insert_gap_at + i] = ' ';
+				}
+				else memcpy_s (data, new_size, _data, _size);
 				delete[] _data;
 				_data = data;
 				_size = new_size;

@@ -5,12 +5,16 @@
 
 namespace In_Next_Week
 {
-	std::vector<GLuint> GeometryData_03::AllTextures = std::vector<GLuint> ();
+	uint32_t GeometryData_03::MaxTextureBindSlots = 6; // slots_already_assigned = 2;
+	uint32_t GeometryData_03::OffsetBindSlots = 2;
+	std::vector<std::pair<GLuint, uint32_t>> GeometryData_03::AllTextures;
 	std::vector<char> GeometryData_03::AllTexturesStr = {'N', 'o', 'n', 'e', '\0', '\0'};
 	uint32_t num_of_textures = 0;
 
 	void Texturing::OnUpdate (GLCore::Timestep ts)
 	{
+		GeometryData_03::OffsetBindSlots = 2; // slots_already_assigned = 2;
+		GeometryData_03::MaxTextureBindSlots = m_MaxTextureBindSlots; // me being lazy: Update for every instance
 		OnUpdateBase (ts, GeometryData_03::BindTextureOption);
 		{ // normal drawing pass
 			glClear (GL_COLOR_BUFFER_BIT);
@@ -27,37 +31,13 @@ namespace In_Next_Week
 	}
 	void Texturing::OnAttach ()
 	{
-		m_NumberOfGeometriesToRender = 1;
+		m_NumberOfGeometriesToRender = 2;
 
 		OnAttachBase ();
 		static bool first = true;
 		if (first) {
 			first = false;
 			GeometryData_03::AddTextureOption ("assets/dice.png");
-			/*{
-				std::fstream file;
-				file.open ("assets/noise.ppm", std::ios::out);
-
-				uint16_t image_width = 600, image_height = 100;
-				file << "P3\n" << image_width << ' ' << image_height << "\n255\n";
-
-				for (int j = image_height-1; j >= 0; --j) {
-					for (int i = 0; i < image_width; ++i) {
-						auto r = double (i) / (image_width-1);
-						auto g = double (j) / (image_height-1);
-						auto b = 0.25;
-
-						int ir = static_cast<int>(255.999 * r);
-						int ig = static_cast<int>(255.999 * g);
-						int ib = static_cast<int>(255.999 * b);
-
-						file << ir << ' ' << ig << ' ' << ib << '\n';
-					}
-				}
-				file.close ();
-
-				GeometryData_03::AddTextureOption ("assets/noise.ppm");
-			}*/
 		}
 
 		LOG_TRACE ("GeomBuffSize: {0}, SceneNodeSize: {1}", sizeof (GeometryBuff_03), sizeof (LBVH::BVHNodeBuff));
@@ -104,6 +84,19 @@ namespace In_Next_Week
 
 				OnImGuiRenderBase ();
 
+				if (ImGui::InputInt ("Number Of Texture Bind Slots", &m_MaxTextureBindSlots)) {
+					GLint max_tex_bind_slots;
+					glGetIntegerv (GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS, &max_tex_bind_slots);
+					int slots_already_assigned = 2; // for geomBuff & SceneHier
+					
+					auto tmp = m_MaxTextureBindSlots;
+					m_MaxTextureBindSlots = MAX (1, MIN (max_tex_bind_slots - slots_already_assigned, m_MaxTextureBindSlots));
+					if (tmp != m_MaxTextureBindSlots)
+					{
+						FindAndSetStr (m_ComputeShaderTXT, { "#define","u_NumOfTexture2D" }, std::to_string (m_MaxTextureBindSlots));
+					}
+				}
+
 				ImGui::EndTabItem ();
 			}
 			if (ImGui::BeginTabItem (GLCore::ImGuiLayer::UniqueName ("Compute Shader Source"))) {
@@ -124,7 +117,7 @@ namespace In_Next_Week
 				ImGui::Text ("If you cannot see your uploaded texture here reselect from combo");
 				ImGui::Image ((void *)(display_texture), ImVec2 (ImGui::GetContentRegionAvailWidth (), ImGui::GetContentRegionAvailWidth () / 4), ImVec2{ 0, 1 }, ImVec2{ 1, 0 });
 				if (ImGui::Combo ("already uploaded textures", &selected, GeometryData_03::AllTexturesStr.data ())) {
-					display_texture = GeometryData_03::AllTextures[selected - 1];
+					display_texture = GeometryData_03::AllTextures[selected - 1].first;
 				}
 				ImGui::Separator ();
 				static int selectedTYP = 0;
@@ -170,7 +163,7 @@ namespace In_Next_Week
 				ImGui::Separator ();
 				static int imprtFrmt = 0;
 				if (ImGui::Button ("Add From Disk")) {
-					display_texture = GeometryData_03::AddTextureOption (GLCore::Utils::FileDialogs::OpenFile ("Image\0*.jpeg\0*.png\0*.bmp\0*.hdr\0*.psd\0*.tga\0*.gif\0*.pic\0*.psd\0*.pgm\0").c_str (), Helper::TEXTURE_2D::MAPPING (imprtFrmt));
+					display_texture = GeometryData_03::AddTextureOption (GLCore::Utils::FileDialogs::OpenFile ("Image\0*.jpg\0*.png\0*.jpeg\0*.bmp\0*.hdr\0*.psd\0*.tga\0*.gif\0*.pic\0*.psd\0*.pgm\0").c_str (), Helper::TEXTURE_2D::MAPPING (imprtFrmt));
 					selected = GeometryData_03::AllTextures.size ();
 				}
 				ImGui::Combo ("Import Mapping Format", &imprtFrmt, "Cubic Projection\0Mercator Projection\0");

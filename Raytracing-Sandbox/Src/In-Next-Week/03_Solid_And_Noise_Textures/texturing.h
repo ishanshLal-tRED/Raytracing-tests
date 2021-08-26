@@ -31,18 +31,30 @@ namespace In_Next_Week
 	public:
 		GeometryData_03 (): Transform_Data () {};
 		virtual ~GeometryData_03 () {
-			if (AllTextures.size () > 0) {
-				glDeleteTextures (AllTextures.size (), AllTextures.data ());
-				AllTextures.clear ();
+			for (auto &iVal : AllTextures) {
+				glDeleteTextures (1, &iVal.first);
 			}
+			AllTextures.clear ();
 		};
 
 		// virtual std::pair<glm::vec3, glm::vec3> CalculateBBMinMax () override
 
 		virtual bool OnImGuiRender () override
 		{
+			auto prev = TextureIndex;
+			bool combo = ImGui::Combo ("Texture", &TextureIndex, AllTexturesStr.data ());
+			if (combo) {
+				// decrease counter
+				if (prev) {
+					LOG_ASSERT (AllTextures[prev - 1].second > 0);
+					AllTextures[prev - 1].second--;
+				}
+				if (TextureIndex) {
+					AllTextures[TextureIndex - 1].second++;
+				}
+			}
 			return
-				  ImGui::Combo ("Texture", &TextureIndex, AllTexturesStr.data ())
+				  combo
 				| ImGui::SliderFloat2 ("Scatteritivity (OnRefract, OnReflect)", &Scatteritivity[0], 0.0f, 1.0f)
 				| ImGui::SliderFloat ("Reflectivity", &Reflectivity, 0.0f, 1.0f - Refractivity)
 				| ImGui::SliderFloat ("Refractivity", &Refractivity, 0.0f, 1.0f)
@@ -60,7 +72,12 @@ namespace In_Next_Week
 			buffer->Type = float (Type);
 			
 			buffer->MTL.Color = Color;
-			buffer->MTL.TextureIndex = float(TextureIndex);
+			uint32_t counter = 0;
+			for (uint32_t i = 0; i < AllTextures.size (); i++) {
+				if (AllTextures[i].second > 0) counter++;
+				if (TextureIndex == i) break;
+			}
+			buffer->MTL.TextureIndex = float(counter);
 
 			buffer->MTL.RefractiveIndex = RefractiveIndex;
 			buffer->MTL.Reflectivity = Reflectivity;
@@ -78,7 +95,7 @@ namespace In_Next_Week
 			else temp = Helper::TEXTURE_2D::LoadFromDiskToGPU (filePath);
 			if (temp) {
 				auto [a, b, c] = temp.value ();
-				AllTextures.push_back (a);
+				AllTextures.push_back ({ a, 0 });
 				std::string name = std::filesystem::path (filePath).filename ().string ();
 				AllTexturesStr.insert(AllTexturesStr.end() - 1, '\0');
 				for (auto r_itr = name.begin (); r_itr != name.end (); r_itr++) {
@@ -92,7 +109,7 @@ namespace In_Next_Week
 		{
 			LOG_ASSERT(textureID != 0 && name != std::string());
 			{
-				AllTextures.push_back (textureID);
+				AllTextures.push_back ({ textureID, 0 });
 				AllTexturesStr.insert (AllTexturesStr.end () - 1, '\0');
 				for (auto r_itr = name.begin (); r_itr != name.end (); r_itr++) {
 					AllTexturesStr.insert (AllTexturesStr.end () - 2, *r_itr);
@@ -101,9 +118,14 @@ namespace In_Next_Week
 		}
 		static void BindTextureOption ()
 		{
-			for (uint32_t i = 0; i < AllTextures.size (); i++) {
+			std::vector<GLuint> send;
+			for (auto& iVal : AllTextures)
+				if (iVal.second > 0) send.push_back (iVal.first);
+
+			uint32_t Size = MIN (send.size (), MaxTextureBindSlots);
+			for (uint32_t i = 0; i < Size; i++) {
 				glActiveTexture (GL_TEXTURE2 + i);
-				glBindTexture (GL_TEXTURE_2D, AllTextures[i]);
+				glBindTexture (GL_TEXTURE_2D, send[i]);
 			}
 		}
 
@@ -125,7 +147,9 @@ namespace In_Next_Week
 		float Reflectivity = 0.15f;
 		glm::vec2 Scatteritivity = { 0,0 }; // OnRefract, OnReflect
 
-		static std::vector<GLuint> AllTextures;
+		// TextureID, counter
+		static uint32_t MaxTextureBindSlots, OffsetBindSlots;
+		static std::vector<std::pair<GLuint, uint32_t>> AllTextures;
 		static std::vector<char> AllTexturesStr; // Split By '\0' to directly be used for ImGui::Combo
 	};
 
@@ -148,5 +172,7 @@ namespace In_Next_Week
 		virtual void OnComputeShaderReload () override;
 
 		virtual bool FillBuffer (GLCore::Timestep) override;
+
+		int m_MaxTextureBindSlots = 6;
 	};
 }

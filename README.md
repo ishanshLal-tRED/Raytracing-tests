@@ -42,6 +42,7 @@ In-Next-Week/
   // SWITCHING PRIORITIES, NOW GOAL IS TO FINISH THIS AS SOON AS POSSIBLE INSTEAD OF MAKINg IT LOOK GOOD (17.08.2021) {also the reason why i'm not switching to SSBO instead of texture for buffer}. 
     03_Texturing ([⩗]texture loading from disk, [⩗]noise texture, [⩗]mercator texture <-> cubic texture).
 	NOTE: (well its okay for naming to be like this as BVH took quite a big toll on me)Inconsistency in GeometryData.size() and num of geometries to render so i'm just gonna disable from Gui (a.k.a NumberOfGeometriesToRender)
+    04_Lighting (Logic Implimented, though few artifact here and there are showing up).
 ```
 
 # 2. How to use

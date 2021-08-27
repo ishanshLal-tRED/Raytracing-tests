@@ -1,4 +1,5 @@
-﻿#include "../base.h"
+﻿
+#include "../base.h"
 
 namespace In_Next_Week
 {
@@ -129,17 +130,7 @@ namespace In_Next_Week
 			}
 		}
 
-		/*|
-		|*| DEFAULT_COLOR            | vec3(0,0,0)
-		|*| DEFAULT_REFRACTIVE_INDEX | 1.5
-		|*| DEFAULT_REFRACTIVITY     | 0.7
-		|*| DEFAULT_REFLECTIVITY     | 0.2
-		|*| DEFAULT_SCATTER_REFRACT  | 0.0
-		|*| DEFAULT_SCATTER_REFLECT  | 0.0
-		|*/
-
 		GeometryType_03 Type = GeometryType_03::Ellipsoid;
-		bool isDynamic = false;
 		glm::vec3 Color = { 0,0,0 };
 		int TextureIndex = 0;
 		float RefractiveIndex = 1.5f;

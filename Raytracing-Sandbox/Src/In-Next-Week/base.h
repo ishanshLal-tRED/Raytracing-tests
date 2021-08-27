@@ -93,7 +93,90 @@ namespace In_Next_Week
 		{ m_Camera.pitch = 0, m_Camera.yaw = 0;	}
 		virtual ~RT_Base () = default;
 	protected:
-		void OnUpdateBase (GLCore::Timestep, void(*ExtraWorkAfterShaderBindBeforDispatch)(void) = nullptr);
+		template<typename Func>
+		void OnUpdateBase (GLCore::Timestep ts, const Func &ExtraWorkAfterShaderBindBeforDispatch)
+		{
+			// GLuint drawFBOID, readFBOID;
+			// glGetIntegerv (GL_DRAW_FRAMEBUFFER_BINDING, &drawFBOID);
+			// glGetIntegerv (GL_READ_FRAMEBUFFER_BINDING, &readFBOID);
+
+			m_DeltatimeBetweenFrameDraw += ts;
+			glClearColor (0.1f, 0.1f, 0.1f, 1.0f);
+			glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			if (m_RedrawFrame) { // launch compute shaders!
+				m_RedrawFrame = false;
+				{// Copy Buffer
+					bool resize_buff_tex = false, refill_buff_tex = false;
+					if (m_GeometryData.size () < m_NumberOfGeometriesToRender) {
+						m_GeometryData.resize (m_NumberOfGeometriesToRender);
+						m_GeometryBuff.resize (m_NumberOfGeometriesToRender);
+						resize_buff_tex = refill_buff_tex = true;
+					}
+
+					refill_buff_tex |= FillBuffer (m_DeltatimeBetweenFrameDraw); // Fill_Buffer
+
+					if (resize_buff_tex) {
+						glActiveTexture (GL_TEXTURE0);
+						glBindTexture (GL_TEXTURE_2D, m_GeometryBufferInputTextureID);
+						// (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
+						glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA32F, sizeof (GeometryBuff)/sizeof (float[4]), m_GeometryBuff.size (), 0, GL_RGBA, GL_FLOAT, nullptr);
+
+						glBindTexture (GL_TEXTURE_2D, m_SceneHierarchyInputTextureID);
+						// (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
+						glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA32F, sizeof (LBVH::BVHNodeBuff)/sizeof (float[4]), m_GeometryBuff.size ()*2 - 1, 0, GL_RGBA, GL_FLOAT, nullptr);
+
+						resize_buff_tex = false;
+					}
+
+					if (refill_buff_tex) {
+						Helper::TEXTURE_2D::SetData (m_GeometryBufferInputTextureID, sizeof (GeometryBuff)/sizeof (float[4]), m_GeometryBuff.size (), GL_RGBA, GL_FLOAT, m_GeometryBuff.data (), 0);
+
+						//std::this_thread::sleep_for (std::chrono::seconds (1));
+						auto [nodeBuff, buffSize] = LBVH::ConstructLBVH_Buff<GeometryData> (m_GeometryData.data (), m_NumberOfGeometriesToRender);
+						LOG_ASSERT ((m_GeometryBuff.size ()*2 - 1) == buffSize);
+						Helper::TEXTURE_2D::SetData (m_SceneHierarchyInputTextureID, sizeof (LBVH::BVHNodeBuff)/sizeof (float[4]), m_GeometryBuff.size ()*2 - 1, GL_RGBA, GL_FLOAT, nodeBuff, 0);
+
+						for (uint32_t i = 0; i < m_NumberOfGeometriesToRender; i++)
+							m_GeometryData[i].last_position = m_GeometryData[i].position;
+
+						delete[] nodeBuff;
+					}
+				}
+				m_DeltatimeBetweenFrameDraw = 0;
+
+
+				glUseProgram (m_ComputeShaderProgID);
+
+				ExtraWorkAfterShaderBindBeforDispatch ();
+
+				glUniform1i (m_UniformID.NumberOfGeometriesToRender, m_NumberOfGeometriesToRender);
+				glUniform1i (m_UniformID.NumberOfBouncesPerSampleRay, m_NumberOfRayBounces);
+
+				glUniform3f (m_UniformID.Camera.Position, m_Camera.Position.x, m_Camera.Position.y, m_Camera.Position.z);
+				glm::vec3 front = m_Camera.Front ();
+				glUniform3f (m_UniformID.Camera.Direction, front.x, front.y, front.z);
+				glUniform1f (m_UniformID.Camera.FOV_y, m_Camera.FOV_y);
+
+				for (uint32_t i = 0; i < m_Camera.NumberOfFocusDist; i++) {
+					glUniform1f (m_UniformID.Camera.FocusDists_at_0 + i, m_Camera.FocusDists[i]);
+				}
+				glUniform1f (m_UniformID.Camera.Aperture, m_Camera.Aperture);
+
+				glActiveTexture (GL_TEXTURE0);
+				glBindTexture (GL_TEXTURE_2D, m_GeometryBufferInputTextureID);
+				glActiveTexture (GL_TEXTURE1);
+				glBindTexture (GL_TEXTURE_2D, m_SceneHierarchyInputTextureID);
+
+				glDispatchCompute (uint32_t (m_RTOutputResolution*m_AspectRatio), uint32_t (m_RTOutputResolution), 1);
+
+				// make sure writing to image has finished before read
+				glMemoryBarrier (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+			}
+		}
+		inline void OnUpdateBase (GLCore::Timestep ts)
+		{
+			return OnUpdateBase (ts, []() {});
+		}
 		void OnAttachBase ();
 		void OnDetachBase ();
 		void OnImGuiRenderBase ();
@@ -217,7 +300,6 @@ namespace In_Next_Week
 		std::vector<GeometryBuff> m_GeometryBuff;
 
 	};
-
 	//################################
 
 	template<typename GeometryData, typename GeometryBuff>
@@ -507,87 +589,10 @@ namespace In_Next_Week
 		m_Camera.FocusDists.resize (m_Camera.NumberOfFocusDist);
 		m_Camera.FocusDists[0] = 10.0f;
 	}
-	template<typename GeometryData, typename GeometryBuff>
-	void In_Next_Week::RT_Base<GeometryData, GeometryBuff>::OnUpdateBase (GLCore::Timestep ts, void(*ExtraWorkAfterShaderBindBeforDispatch)(void))
-	{
-		// GLuint drawFBOID, readFBOID;
-		// glGetIntegerv (GL_DRAW_FRAMEBUFFER_BINDING, &drawFBOID);
-		// glGetIntegerv (GL_READ_FRAMEBUFFER_BINDING, &readFBOID);
 
-		m_DeltatimeBetweenFrameDraw += ts;
-		glClearColor (0.1f, 0.1f, 0.1f, 1.0f);
-		glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		if (m_RedrawFrame){ // launch compute shaders!
-			m_RedrawFrame = false;
-			{// Copy Buffer
-				bool resize_buff_tex = false, refill_buff_tex = false;
-				if (m_GeometryData.size () < m_NumberOfGeometriesToRender) {
-					m_GeometryData.resize (m_NumberOfGeometriesToRender);
-					m_GeometryBuff.resize (m_NumberOfGeometriesToRender);
-					resize_buff_tex = refill_buff_tex = true;
-				}
-				
-				refill_buff_tex |= FillBuffer (m_DeltatimeBetweenFrameDraw); // Fill_Buffer
-
-				if (resize_buff_tex) {
-					glActiveTexture (GL_TEXTURE0);
-					glBindTexture (GL_TEXTURE_2D, m_GeometryBufferInputTextureID);
-					// (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
-					glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA32F, sizeof (GeometryBuff)/sizeof (float[4]), m_GeometryBuff.size (), 0, GL_RGBA, GL_FLOAT, nullptr);
-
-					glBindTexture (GL_TEXTURE_2D, m_SceneHierarchyInputTextureID);
-					// (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
-					glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA32F, sizeof (LBVH::BVHNodeBuff)/sizeof (float[4]), m_GeometryBuff.size ()*2 - 1, 0, GL_RGBA, GL_FLOAT, nullptr);
-
-					resize_buff_tex = false;
-				}
-
-				if (refill_buff_tex) {
-					Helper::TEXTURE_2D::SetData (m_GeometryBufferInputTextureID, sizeof (GeometryBuff)/sizeof (float[4]), m_GeometryBuff.size (), GL_RGBA, GL_FLOAT, m_GeometryBuff.data (), 0);
-
-					//std::this_thread::sleep_for (std::chrono::seconds (1));
-					auto [nodeBuff, buffSize] = LBVH::ConstructLBVH_Buff<GeometryData> (m_GeometryData.data (), m_NumberOfGeometriesToRender); 
-					LOG_ASSERT ((m_GeometryBuff.size ()*2 - 1) == buffSize);
-					Helper::TEXTURE_2D::SetData (m_SceneHierarchyInputTextureID, sizeof (LBVH::BVHNodeBuff)/sizeof (float[4]), m_GeometryBuff.size ()*2 - 1, GL_RGBA, GL_FLOAT, nodeBuff, 0);
-
-					for (uint32_t i = 0; i < m_NumberOfGeometriesToRender; i++)
-						m_GeometryData[i].last_position = m_GeometryData[i].position;
-
-					delete[] nodeBuff;
-				}
-			}
-			m_DeltatimeBetweenFrameDraw = 0;
-
-
-			glUseProgram (m_ComputeShaderProgID);
-
-			if (ExtraWorkAfterShaderBindBeforDispatch)
-				ExtraWorkAfterShaderBindBeforDispatch ();
-
-			glUniform1i (m_UniformID.NumberOfGeometriesToRender, m_NumberOfGeometriesToRender);
-			glUniform1i (m_UniformID.NumberOfBouncesPerSampleRay, m_NumberOfRayBounces);
-
-			glUniform3f (m_UniformID.Camera.Position, m_Camera.Position.x, m_Camera.Position.y, m_Camera.Position.z);
-			glm::vec3 front = m_Camera.Front ();
-			glUniform3f (m_UniformID.Camera.Direction, front.x, front.y, front.z);
-			glUniform1f (m_UniformID.Camera.FOV_y, m_Camera.FOV_y);
-
-			for (uint32_t i = 0; i < m_Camera.NumberOfFocusDist; i++) {
-				glUniform1f (m_UniformID.Camera.FocusDists_at_0 + i, m_Camera.FocusDists[i]);
-			}
-			glUniform1f (m_UniformID.Camera.Aperture, m_Camera.Aperture);
-
-			glActiveTexture (GL_TEXTURE0);
-			glBindTexture (GL_TEXTURE_2D, m_GeometryBufferInputTextureID);
-			glActiveTexture (GL_TEXTURE1);
-			glBindTexture (GL_TEXTURE_2D, m_SceneHierarchyInputTextureID);
-
-			glDispatchCompute (uint32_t (m_RTOutputResolution*m_AspectRatio), uint32_t (m_RTOutputResolution), 1);
-			
-			// make sure writing to image has finished before read
-			glMemoryBarrier (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-		}
-	}
+	//template<typename GeometryData, typename GeometryBuff, typename Func>
+	//void In_Next_Week::RT_Base<GeometryData, GeometryBuff>::OnUpdateBase (GLCore::Timestep, const Func &ExtraWorkAfterShaderBindBeforDispatch)
+	
 	template<typename GeometryData, typename GeometryBuff>
 	void In_Next_Week::RT_Base<GeometryData, GeometryBuff>::OnComputeShaderReloadBase ()
 	{

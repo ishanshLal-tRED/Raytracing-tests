@@ -12,6 +12,7 @@
 #include "In-Next-Week/00_MotionBlur/motion_blur.h"
 #include "In-Next-Week/01_BoundingVolumeHierarchy/BVH.h"
 #include "In-Next-Week/03_Solid_And_Noise_Textures/texturing.h"
+#include "In-Next-Week/04_Lights_Camera_And_Action/lights.h"
 
 //static size_t memory_in_use = 0;
 //static size_t peak_memory_use = 0;
@@ -39,15 +40,16 @@ public:
 		// PushLayer<BasicComputeShader_Test> ();
 		// PushLayer<BlurWithComputeShader_Test> ();
 		// PushLayer<just_a_test> ();
+		PushLayer<BuffSupply::Test> ();
 		// PushLayer<In_One_Weekend::Image> ();
 		// PushLayer<In_One_Weekend::Sphere> ();
 		// PushLayer<In_One_Weekend::Groups> ();
 		// PushLayer<In_One_Weekend::Adding_Materials> ();
-		PushLayer<In_Next_Week::MotionBlur> ();
+		// PushLayer<In_Next_Week::MotionBlur> ();
 		// PushLayer<In_Next_Week::BoundingVolumeHierarchy> ();
-		PushLayer<In_Next_Week::BVH> ();
+		// PushLayer<In_Next_Week::BVH> ();
 		PushLayer<In_Next_Week::Texturing> ();
-		PushLayer<BuffSupply::Test> ();
+		PushLayer<In_Next_Week::Lights> ();
 	}
 };
 
